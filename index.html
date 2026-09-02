@@ -11,11 +11,10 @@
     --eye:#4dd2ff; --nose:#ffc247; --mouth:#ff6fa8; --mesh:#7de3a0;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%}
+  html,body{margin:0}
   body{
-    background:var(--bg); color:var(--fg);
+    background:var(--bg); color:var(--fg); min-height:100%;
     font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
-    display:flex; flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   header{padding:10px 14px 6px}
@@ -24,8 +23,8 @@
 
   #stage{position:relative;margin:8px 10px;border-radius:10px;overflow:hidden;background:#000;
     border:1px solid var(--line);min-height:180px}
-  #stage video,#stage canvas{display:block;width:100%;height:auto}
-  #stage canvas{position:absolute;inset:0;height:100%}
+  #stage video{display:block;width:100%;height:auto}
+  #stage canvas{position:absolute;left:0;top:0;width:100%;height:100%}
   #stage video.mirror{transform:scaleX(-1)}
 
   #curtain{position:absolute;inset:0;display:flex;flex-direction:column;
@@ -95,6 +94,7 @@
     <label class="chk"><input type="checkbox" id="mirror" checked>左右反転</label>
     <label class="chk"><input type="checkbox" id="labels">名前を出す</label>
     <label class="chk"><input type="checkbox" id="smooth" checked>ゆれ止め</label>
+    <label class="chk"><input type="checkbox" id="frame">位置合わせ枠</label>
     <button class="segbtn" id="flip" style="font:inherit;font-size:.78rem;color:var(--fg);background:#2a3341;border:1px solid var(--line);border-radius:8px;padding:9px 14px;min-height:40px;cursor:pointer">カメラ切替</button>
   </div>
   <div class="key">
@@ -160,7 +160,7 @@ const vid=$('vid'), ov=$('ov'), octx=ov.getContext('2d');
 const curtain=$('curtain'), errBox=$('err'), stats=$('stats'), diag=$('diag');
 
 let landmarker=null, stream=null, facing='user', running=false;
-let mode='4', dotSize=6, mirror=true, showLabels=false, smoothing=true;
+let mode='4', dotSize=6, mirror=true, showLabels=false, smoothing=true, showFrame=false;
 let prev=[], lastVideoTime=-1, frames=0, fpsT=0, fps=0, faceCount=0, lmCount=0, argminZ=-1;
 
 /* ---- UI 配線 ---- */
@@ -173,6 +173,7 @@ $('size').addEventListener('input', e=>dotSize=+e.target.value);
 $('mirror').addEventListener('change', e=>{ mirror=e.target.checked; applyMirror(); });
 $('labels').addEventListener('change', e=>showLabels=e.target.checked);
 $('smooth').addEventListener('change', e=>{ smoothing=e.target.checked; prev=[]; });
+$('frame').addEventListener('change', e=>showFrame=e.target.checked);
 $('flip').addEventListener('click', async()=>{
   facing = facing==='user' ? 'environment' : 'user';
   $('mirror').checked = mirror = (facing==='user');
@@ -182,6 +183,24 @@ $('flip').addEventListener('click', async()=>{
 $('start').addEventListener('click', boot, {once:true});
 
 function applyMirror(){ vid.classList.toggle('mirror', mirror); }
+
+/* canvas の表示箱を、video が実際に描かれている矩形にピクセル単位で合わせる。
+   CSS の % 指定に任せると、親のレイアウト（フレックスの縮み・letterbox）で
+   静かにズレる。ここを毎回実測するのが唯一確実な方法。 */
+let boxW=0, boxH=0;
+function syncOverlay(){
+  const st=document.getElementById('stage');
+  const r=vid.getBoundingClientRect(), s=st.getBoundingClientRect();
+  if(!r.width || !r.height) return;
+  ov.style.left = (r.left-s.left)+'px';
+  ov.style.top  = (r.top -s.top )+'px';
+  ov.style.width  = r.width+'px';
+  ov.style.height = r.height+'px';
+  boxW=Math.round(r.width); boxH=Math.round(r.height);
+}
+addEventListener('resize', syncOverlay);
+addEventListener('orientationchange', ()=>setTimeout(syncOverlay,300));
+vid.addEventListener('loadedmetadata', syncOverlay);
 
 function bail(code, detail){
   errBox.innerHTML = '<b>'+code+'</b>'+detail;
@@ -252,7 +271,7 @@ function loop(){
   const step=()=>{
     if(vid.readyState>=2 && landmarker){
       if(ov.width!==vid.videoWidth || ov.height!==vid.videoHeight){
-        ov.width=vid.videoWidth; ov.height=vid.videoHeight;
+        ov.width=vid.videoWidth; ov.height=vid.videoHeight; syncOverlay();
       }
       if(vid.currentTime!==lastVideoTime){
         lastVideoTime=vid.currentTime;
@@ -263,9 +282,14 @@ function loop(){
       frames++;
       const now=performance.now();
       if(now-fpsT>500){ fps=Math.round(frames*1000/(now-fpsT)); frames=0; fpsT=now;
+        syncOverlay();
         stats.textContent = fps+' fps ／ 顔 '+faceCount+' ／ 点 '+lmCount;
-        if(lmCount) diag.textContent = diag.textContent.split('\n').slice(0,2).join('\n')
-          + '\n landmarks: '+lmCount+' ／ z最小の番号: '+argminZ+'（鼻先なら 1 前後のはず）';
+        const vr=vid.getBoundingClientRect(), or_=ov.getBoundingClientRect();
+        const gap=Math.round(Math.abs(vr.height-or_.height))+'x'+Math.round(Math.abs(vr.width-or_.width));
+        diag.textContent = diag.textContent.split('\n').slice(0,2).join('\n')
+          + '\nframe: '+vid.videoWidth+'x'+vid.videoHeight+' ／ 表示: '+boxW+'x'+boxH
+          + '\ncanvasと映像のズレ: '+gap+' px（0x0 が正常）'
+          + '\nlandmarks: '+lmCount+' ／ z最小の番号: '+argminZ+'（鼻先なら 1 前後のはず）';
       }
     }
     if('requestVideoFrameCallback' in HTMLVideoElement.prototype) vid.requestVideoFrameCallback(step);
@@ -283,6 +307,7 @@ const mean=(lm,ids)=>{
 function draw(faces){
   faceCount=faces.length;
   octx.clearRect(0,0,ov.width,ov.height);
+  if(showFrame) drawFrame();
   if(!faces.length){ lmCount=0; prev=[]; return; }
   lmCount=faces[0].length;
 
@@ -319,6 +344,18 @@ function draw(faces){
       dot(lm[IDX.mouthBottom],'#ff6fa8',dotSize*0.8,null);
     }
   });
+}
+
+/* canvas が映像とぴったり重なっているかを目視確認するための枠。
+   この枠が画面の映像の縁と一致していれば座標系は正しい。 */
+function drawFrame(){
+  const w=ov.width, h=ov.height, lw=Math.max(2,w/300);
+  octx.strokeStyle='#7de3a0'; octx.lineWidth=lw;
+  octx.strokeRect(lw/2, lw/2, w-lw, h-lw);
+  octx.beginPath();
+  octx.moveTo(w/2,0); octx.lineTo(w/2,h);
+  octx.moveTo(0,h/2); octx.lineTo(w,h/2);
+  octx.globalAlpha=.45; octx.stroke(); octx.globalAlpha=1;
 }
 
 function dot(p, color, r, label){
