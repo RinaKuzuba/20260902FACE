@@ -17,19 +17,18 @@
     font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  header{padding:10px 14px 6px}
-  h1{margin:0;font-size:1rem;font-weight:600;letter-spacing:.04em}
-  header p{margin:2px 0 0;font-size:.72rem;color:var(--dim)}
+  header{padding:8px 14px 4px}
+  h1{margin:0;font-size:.95rem;font-weight:600;letter-spacing:.04em}
+  header p{margin:2px 0 0;font-size:.7rem;color:var(--dim)}
 
-  #stage{position:relative;margin:8px 10px;border-radius:10px;overflow:hidden;background:#000;
-    border:1px solid var(--line);min-height:180px}
-  #stage video{display:block;width:100%;height:auto}
-  #stage canvas{position:absolute;left:0;top:0;width:100%;height:100%}
-  #stage video.mirror{transform:scaleX(-1)}
+  #stage{position:relative;margin:6px 10px;background:#000;border:1px solid var(--line);
+    border-radius:10px;overflow:hidden;min-height:180px;display:flex;justify-content:center}
+  /* 映像は canvas の中に描くので、video 自体は表示しない（再生は継続させる） */
+  #vid{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  #ov{display:block;max-width:100%}
 
   #curtain{position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;
-    background:#0d1116}
+    align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;background:#0d1116}
   #curtain.hide{display:none}
   #start{font:inherit;font-size:1rem;font-weight:600;color:#0d1116;background:var(--mesh);
     border:0;border-radius:999px;padding:14px 30px;cursor:pointer}
@@ -38,32 +37,33 @@
   #err{color:#ff9d9d;font-size:.8rem;line-height:1.6;max-width:36ch}
   #err b{display:block;font-size:.9rem;margin-bottom:4px}
 
-  #stats{position:absolute;left:8px;top:8px;font-size:.66rem;color:var(--dim);
-    background:rgba(13,17,22,.62);padding:4px 8px;border-radius:6px;letter-spacing:.02em}
+  #stats{position:absolute;left:8px;top:8px;font-size:.64rem;color:var(--dim);
+    background:rgba(13,17,22,.62);padding:3px 7px;border-radius:6px}
 
-  .panel{margin:0 10px 10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+  .panel{margin:0 10px 8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:8px 12px;display:flex;flex-direction:column;gap:8px}
   .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .row>span.lb{font-size:.75rem;color:var(--dim);min-width:4.5em}
   .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .seg button{font:inherit;font-size:.78rem;color:var(--dim);background:transparent;border:0;
-    padding:9px 12px;cursor:pointer;min-height:40px}
+    padding:8px 12px;cursor:pointer;min-height:38px}
   .seg button[aria-pressed="true"]{background:#2a3341;color:var(--fg)}
   .seg button+button{border-left:1px solid var(--line)}
-  input[type=range]{flex:1;min-width:110px;accent-color:var(--eye)}
-  label.chk{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--dim);min-height:40px}
+  input[type=range]{flex:1;min-width:100px;accent-color:var(--eye)}
+  label.chk{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--dim);min-height:38px}
   input[type=checkbox]{width:18px;height:18px;accent-color:var(--eye)}
+  #flip{font:inherit;font-size:.78rem;color:var(--fg);background:#2a3341;border:1px solid var(--line);
+    border-radius:8px;padding:8px 14px;min-height:38px;cursor:pointer}
   details{font-size:.72rem;color:var(--dim)}
-  details pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-all;color:var(--dim);
-    font-size:.68rem;line-height:1.6}
+  details pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-all;font-size:.68rem;line-height:1.6}
   .key{display:flex;gap:12px;font-size:.7rem;color:var(--dim);flex-wrap:wrap}
   .key i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
 </style>
 </head>
 <body>
-<header>
+<header id="head">
   <h1>顔ランドマーク・ドット表示</h1>
-  <p>目・鼻・口の位置に点を重ねます。映像は端末内だけで処理し、保存も送信もしません。</p>
+  <p>目・鼻・口に点を重ねます。映像は端末内だけで処理し、保存も送信もしません。</p>
 </header>
 
 <div id="stage">
@@ -77,7 +77,7 @@
   </div>
 </div>
 
-<div class="panel">
+<div class="panel" id="panel">
   <div class="row">
     <span class="lb">表示する点</span>
     <div class="seg" id="mode">
@@ -94,8 +94,7 @@
     <label class="chk"><input type="checkbox" id="mirror" checked>左右反転</label>
     <label class="chk"><input type="checkbox" id="labels">名前を出す</label>
     <label class="chk"><input type="checkbox" id="smooth" checked>ゆれ止め</label>
-    <label class="chk"><input type="checkbox" id="frame">位置合わせ枠</label>
-    <button class="segbtn" id="flip" style="font:inherit;font-size:.78rem;color:var(--fg);background:#2a3341;border:1px solid var(--line);border-radius:8px;padding:9px 14px;min-height:40px;cursor:pointer">カメラ切替</button>
+    <button id="flip">カメラ切替</button>
   </div>
   <div class="key">
     <span><i style="background:var(--eye)"></i>目</span>
@@ -111,8 +110,8 @@
 <script type="module">
 /* ============================================================
    ライブラリ読み込み
-   パッケージのルートURLは main(=.cjs) に解決されるので、
-   ESM では vision_bundle.mjs を明示する必要がある（前回検証済み）。
+   パッケージのルートURLは main(=.cjs) に解決されるため、
+   ESM では vision_bundle.mjs を明示する（検証済み）。
    ============================================================ */
 const MP = {
   versions: ["1.0.1", "0.10.14"],
@@ -123,7 +122,6 @@ const MODELS = [
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
 ];
-
 let FilesetResolver=null, FaceLandmarker=null, wasmBase=null, mpTag='';
 
 async function loadMP(){
@@ -141,18 +139,12 @@ async function loadMP(){
   throw last;
 }
 
-/* ============================================================
-   ランドマーク番号（1.0.1 の定数から実データで確認したもの）
-   ・右目の輪郭 33,133,159,145 / 左目の輪郭 362,263,386,374
-   ・口 13(上唇中央) 14(下唇中央) 61,291(口角)
-   ・虹彩中心 468(右) 473(左) … 478点モデルのときだけ存在
-   ・鼻先 1 … これだけは公式定数に含まれず、キャノニカル定義由来（未検証）
-   ============================================================ */
+/* ランドマーク番号（1.0.1 の公式定数から実データで確認）
+   鼻先 1 のみキャノニカル定義由来で未検証 */
 const IDX = {
   eyeR:[33,133,159,145], eyeL:[362,263,386,374],
   irisR:468, irisL:473,
-  nose:1,
-  mouthTop:13, mouthBottom:14, mouthLeft:61, mouthRight:291,
+  nose:1, mouthTop:13, mouthBottom:14, mouthLeft:61, mouthRight:291,
 };
 
 const $=id=>document.getElementById(id);
@@ -160,51 +152,47 @@ const vid=$('vid'), ov=$('ov'), octx=ov.getContext('2d');
 const curtain=$('curtain'), errBox=$('err'), stats=$('stats'), diag=$('diag');
 
 let landmarker=null, stream=null, facing='user', running=false;
-let mode='4', dotSize=6, mirror=true, showLabels=false, smoothing=true, showFrame=false;
+let mode='4', dotSize=6, mirror=true, showLabels=false, smoothing=true;
 let prev=[], lastVideoTime=-1, frames=0, fpsT=0, fps=0, faceCount=0, lmCount=0, argminZ=-1;
+let dispW=0, dispH=0;
 
-/* ---- UI 配線 ---- */
+/* ---- UI ---- */
 $('mode').addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return;
   mode=b.dataset.v;
   [...$('mode').children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
 });
 $('size').addEventListener('input', e=>dotSize=+e.target.value);
-$('mirror').addEventListener('change', e=>{ mirror=e.target.checked; applyMirror(); });
+$('mirror').addEventListener('change', e=>mirror=e.target.checked);
 $('labels').addEventListener('change', e=>showLabels=e.target.checked);
 $('smooth').addEventListener('change', e=>{ smoothing=e.target.checked; prev=[]; });
-$('frame').addEventListener('change', e=>showFrame=e.target.checked);
 $('flip').addEventListener('click', async()=>{
   facing = facing==='user' ? 'environment' : 'user';
   $('mirror').checked = mirror = (facing==='user');
-  applyMirror();
   await startCam();
 });
 $('start').addEventListener('click', boot, {once:true});
 
-function applyMirror(){ vid.classList.toggle('mirror', mirror); }
-
-/* canvas の表示箱を、video が実際に描かれている矩形にピクセル単位で合わせる。
-   CSS の % 指定に任せると、親のレイアウト（フレックスの縮み・letterbox）で
-   静かにズレる。ここを毎回実測するのが唯一確実な方法。 */
-let boxW=0, boxH=0;
-function syncOverlay(){
-  const st=document.getElementById('stage');
-  const r=vid.getBoundingClientRect(), s=st.getBoundingClientRect();
-  if(!r.width || !r.height) return;
-  ov.style.left = (r.left-s.left)+'px';
-  ov.style.top  = (r.top -s.top )+'px';
-  ov.style.width  = r.width+'px';
-  ov.style.height = r.height+'px';
-  boxW=Math.round(r.width); boxH=Math.round(r.height);
+/* ---- 表示サイズ ----
+   ヘッダーと操作パネルの実測高さを引いた残りに収める。
+   canvas 自体に映像を描くので、ここで何倍に縮めても点はズレない。 */
+function fitCanvas(){
+  const vw=vid.videoWidth||1280, vh=vid.videoHeight||720;
+  const availW = $('stage').clientWidth;
+  const used = $('head').getBoundingClientRect().height
+             + $('panel').getBoundingClientRect().height + 34;
+  const availH = Math.max(160, (window.innerHeight||640) - used);
+  const s = Math.min(availW/vw, availH/vh);
+  dispW = Math.round(vw*s); dispH = Math.round(vh*s);
+  ov.style.width = dispW+'px'; ov.style.height = dispH+'px';
 }
-addEventListener('resize', syncOverlay);
-addEventListener('orientationchange', ()=>setTimeout(syncOverlay,300));
-vid.addEventListener('loadedmetadata', syncOverlay);
+addEventListener('resize', fitCanvas);
+addEventListener('orientationchange', ()=>setTimeout(fitCanvas,300));
+vid.addEventListener('loadedmetadata', fitCanvas);
 
 function bail(code, detail){
-  errBox.innerHTML = '<b>'+code+'</b>'+detail;
-  $('start').textContent='もう一度試す';
+  errBox.innerHTML='<b>'+code+'</b>'+detail;
+  $('start').textContent='もう一度試す'; $('start').disabled=false;
   $('start').addEventListener('click', boot, {once:true});
   curtain.classList.remove('hide');
 }
@@ -216,15 +204,14 @@ async function boot(){
   try{ await loadMP(); }
   catch(e){
     const framed=(()=>{try{return window.self!==window.top;}catch(_){return true;}})();
-    $('start').disabled=false;
     return bail('E1 モジュールを取得できませんでした',
-      framed ? 'このプレビュー画面は外部CDNを遮断します。ファイルを保存してブラウザで直接開くか、GitHub Pages に置いてください。'
+      framed ? 'このプレビュー画面は外部CDNを遮断します。保存してブラウザで直接開くか、GitHub Pages に置いてください。'
              : 'ネットワーク接続を確認してください。');
   }
 
   let fs;
   try{ fs = await FilesetResolver.forVisionTasks(wasmBase); }
-  catch(e){ $('start').disabled=false; return bail('E2 WASM を取得できませんでした','CDN への接続が途中で切れています。時間をおいて再試行してください。'); }
+  catch(e){ return bail('E2 WASM を取得できませんでした','CDN への接続が途中で切れています。'); }
 
   let lastErr=null, used='';
   outer:
@@ -235,15 +222,13 @@ async function boot(){
         runningMode:'VIDEO', numFaces:2,
         minFaceDetectionConfidence:0.4, minFacePresenceConfidence:0.4, minTrackingConfidence:0.4,
       });
-      used = delegate+' / '+url.split('/').slice(-2).join('/');
-      break outer;
+      used = delegate+' / '+url.split('/').slice(-2).join('/'); break outer;
     }catch(e){ lastErr=e; }
   }
-  if(!landmarker){ $('start').disabled=false; return bail('E3 モデルを読み込めませんでした', String(lastErr&&lastErr.message||lastErr)); }
+  if(!landmarker) return bail('E3 モデルを読み込めませんでした', String(lastErr&&lastErr.message||lastErr));
 
-  diag.textContent = 'tasks-vision '+mpTag+'\nmodel: '+used;
-  const ok = await startCam();
-  if(!ok) return;
+  diag.textContent='tasks-vision '+mpTag+'\nmodel: '+used;
+  if(!await startCam()) return;
   curtain.classList.add('hide');
   if(!running){ running=true; loop(); }
 }
@@ -254,42 +239,37 @@ async function startCam(){
     stream = await navigator.mediaDevices.getUserMedia({
       video:{ facingMode:facing, width:{ideal:1280}, height:{ideal:720} }, audio:false });
   }catch(e){
-    $('start').disabled=false;
     bail('E4 カメラを開けませんでした',
       'ブラウザのカメラ許可を確認してください。https:// でない場所（file:// や http://）ではカメラは使えません。');
     return false;
   }
   vid.srcObject=stream;
   await vid.play().catch(()=>{});
-  applyMirror();
-  prev=[]; lastVideoTime=-1;
+  prev=[]; lastVideoTime=-1; fitCanvas();
   return true;
 }
 
-/* ---- 推論ループ ---- */
+/* ---- ループ ---- */
 function loop(){
   const step=()=>{
     if(vid.readyState>=2 && landmarker){
       if(ov.width!==vid.videoWidth || ov.height!==vid.videoHeight){
-        ov.width=vid.videoWidth; ov.height=vid.videoHeight; syncOverlay();
+        ov.width=vid.videoWidth; ov.height=vid.videoHeight; fitCanvas();
       }
       if(vid.currentTime!==lastVideoTime){
         lastVideoTime=vid.currentTime;
         let res=null;
         try{ res=landmarker.detectForVideo(vid, performance.now()); }catch(e){}
-        if(res) draw(res.faceLandmarks||[]);
+        render(res ? (res.faceLandmarks||[]) : []);
       }
       frames++;
       const now=performance.now();
-      if(now-fpsT>500){ fps=Math.round(frames*1000/(now-fpsT)); frames=0; fpsT=now;
-        syncOverlay();
-        stats.textContent = fps+' fps ／ 顔 '+faceCount+' ／ 点 '+lmCount;
-        const vr=vid.getBoundingClientRect(), or_=ov.getBoundingClientRect();
-        const gap=Math.round(Math.abs(vr.height-or_.height))+'x'+Math.round(Math.abs(vr.width-or_.width));
+      if(now-fpsT>500){
+        fps=Math.round(frames*1000/(now-fpsT)); frames=0; fpsT=now;
+        stats.textContent=fps+' fps ／ 顔 '+faceCount+' ／ 点 '+lmCount;
         diag.textContent = diag.textContent.split('\n').slice(0,2).join('\n')
-          + '\nframe: '+vid.videoWidth+'x'+vid.videoHeight+' ／ 表示: '+boxW+'x'+boxH
-          + '\ncanvasと映像のズレ: '+gap+' px（0x0 が正常）'
-          + '\nlandmarks: '+lmCount+' ／ z最小の番号: '+argminZ+'（鼻先なら 1 前後のはず）';
+          + '\nframe: '+vid.videoWidth+'x'+vid.videoHeight+' ／ 表示: '+dispW+'x'+dispH
+          + '\nlandmarks: '+lmCount+' ／ z最小の番号: '+argminZ+'（鼻先なら 1 前後）';
       }
     }
     if('requestVideoFrameCallback' in HTMLVideoElement.prototype) vid.requestVideoFrameCallback(step);
@@ -298,76 +278,59 @@ function loop(){
   step();
 }
 
-/* ---- 描画 ---- */
+/* ---- 描画 ----
+   映像と点を同じ canvas に描く。両者は同一ビットマップなので
+   レイアウトが何であってもズレない。 */
 const mean=(lm,ids)=>{
   let x=0,y=0; for(const i of ids){ x+=lm[i].x; y+=lm[i].y; }
   return {x:x/ids.length, y:y/ids.length};
 };
 
-function draw(faces){
+function render(faces){
+  const w=ov.width, h=ov.height;
+  octx.save();
+  if(mirror){ octx.translate(w,0); octx.scale(-1,1); }
+  octx.drawImage(vid,0,0,w,h);
+  octx.restore();
+
   faceCount=faces.length;
-  octx.clearRect(0,0,ov.width,ov.height);
-  if(showFrame) drawFrame();
   if(!faces.length){ lmCount=0; prev=[]; return; }
   lmCount=faces[0].length;
 
   faces.forEach((raw,fi)=>{
-    // ゆれ止め（指数移動平均）。点数が変わったらリセット
     let lm=raw;
     if(smoothing && prev[fi] && prev[fi].length===raw.length){
       const a=0.5, p=prev[fi];
       lm = raw.map((q,i)=>({x:p[i].x+(q.x-p[i].x)*a, y:p[i].y+(q.y-p[i].y)*a, z:q.z}));
     }
     prev[fi]=lm;
-
-    if(fi===0){
-      let m=Infinity; for(let i=0;i<lm.length;i++) if(lm[i].z<m){ m=lm[i].z; argminZ=i; }
-    }
+    if(fi===0){ let m=Infinity; for(let i=0;i<lm.length;i++) if(lm[i].z<m){ m=lm[i].z; argminZ=i; } }
 
     const hasIris = lm.length>=478;
     const eyeR = hasIris ? lm[IDX.irisR] : mean(lm,IDX.eyeR);
     const eyeL = hasIris ? lm[IDX.irisL] : mean(lm,IDX.eyeL);
-    const nose = lm[IDX.nose];
-    const mouth = mean(lm,[IDX.mouthTop,IDX.mouthBottom]);
 
-    if(mode==='all'){
-      for(const p of lm) dot(p, 'var(--mesh)', Math.max(1.2, dotSize*0.28), null);
-    }
+    if(mode==='all') for(const p of lm) dot(p,'#7de3a0',Math.max(1.2,dotSize*0.28),null);
     dot(eyeR,'#4dd2ff',dotSize,'右目');
     dot(eyeL,'#4dd2ff',dotSize,'左目');
-    dot(nose,'#ffc247',dotSize,'鼻');
-    dot(mouth,'#ff6fa8',dotSize,'口');
+    dot(lm[IDX.nose],'#ffc247',dotSize,'鼻');
+    dot(mean(lm,[IDX.mouthTop,IDX.mouthBottom]),'#ff6fa8',dotSize,'口');
     if(mode==='8'){
-      dot(lm[IDX.mouthLeft],'#ff6fa8',dotSize*0.8,null);
-      dot(lm[IDX.mouthRight],'#ff6fa8',dotSize*0.8,null);
-      dot(lm[IDX.mouthTop],'#ff6fa8',dotSize*0.8,null);
-      dot(lm[IDX.mouthBottom],'#ff6fa8',dotSize*0.8,null);
+      for(const i of [IDX.mouthLeft,IDX.mouthRight,IDX.mouthTop,IDX.mouthBottom])
+        dot(lm[i],'#ff6fa8',dotSize*0.8,null);
     }
   });
 }
 
-/* canvas が映像とぴったり重なっているかを目視確認するための枠。
-   この枠が画面の映像の縁と一致していれば座標系は正しい。 */
-function drawFrame(){
-  const w=ov.width, h=ov.height, lw=Math.max(2,w/300);
-  octx.strokeStyle='#7de3a0'; octx.lineWidth=lw;
-  octx.strokeRect(lw/2, lw/2, w-lw, h-lw);
-  octx.beginPath();
-  octx.moveTo(w/2,0); octx.lineTo(w/2,h);
-  octx.moveTo(0,h/2); octx.lineTo(w,h/2);
-  octx.globalAlpha=.45; octx.stroke(); octx.globalAlpha=1;
-}
-
-function dot(p, color, r, label){
+function dot(p,color,r,label){
   if(!p) return;
-  const s = ov.width/380;                       // 画面幅に対する基準スケール
+  const s = ov.width/380;
   const R = r*s*0.55;
   const x = (mirror ? 1-p.x : p.x) * ov.width;
   const y = p.y * ov.height;
   octx.beginPath(); octx.arc(x,y,R,0,Math.PI*2);
-  octx.fillStyle=color; octx.globalAlpha=0.95; octx.fill();
-  octx.globalAlpha=1;
-  octx.lineWidth=Math.max(1,R*0.28); octx.strokeStyle='rgba(0,0,0,.55)'; octx.stroke();
+  octx.fillStyle=color; octx.globalAlpha=.95; octx.fill(); octx.globalAlpha=1;
+  octx.lineWidth=Math.max(1,R*.28); octx.strokeStyle='rgba(0,0,0,.55)'; octx.stroke();
   if(label && showLabels){
     octx.font=Math.round(13*s)+'px system-ui, sans-serif';
     octx.textAlign='center'; octx.textBaseline='bottom';
