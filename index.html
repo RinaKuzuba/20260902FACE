@@ -47,6 +47,9 @@
   #bar{height:6px;background:#2a2431;border-radius:99px;margin:10px auto 0;max-width:320px;overflow:hidden}
   #bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .12s}
   #sub{font-size:.7rem;color:var(--dim);margin-top:8px;line-height:1.6}
+  #shutter{margin:12px auto 0;display:block;width:76px;height:76px;border-radius:50%;
+    border:4px solid #4a4155;background:var(--accent);color:#2a1420;font-size:.85rem;font-weight:800}
+  #shutter:disabled{background:#3a3344;color:#6d6478;border-color:#332c3d}
 
   /* 結果 */
   .res{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}
@@ -108,6 +111,7 @@
     <div id="msg">じゅんびちゅう…</div>
     <div id="bar"><i></i></div>
     <div id="sub">正面をむいて、口をとじてください</div>
+    <button id="shutter" disabled>とる</button>
   </div>
 </div>
 
@@ -174,7 +178,10 @@ let DB=load();
 const $=id=>document.getElementById(id);
 const vid=$('vid'), cv=$('cv'), cx=cv.getContext('2d');
 let landmarker=null, stream=null, target=null, running=false, lastT=-1, shootMode='new';
-let buf=[], holdOK=0;
+let buf=[];
+let phase='idle', tCount=0, tShoot=0, loopId=0;
+const COUNT=3000, LIMIT=8000;   // カウントダウン3秒、収集の打ち切り8秒
+$('shutter').onclick=()=>{ if(phase==='idle'){ phase='count'; tCount=performance.now(); buf=[]; } };
 
 /* ============================================================
    正規化：両目の外側の角を基準に、平行移動・回転・大きさを取り除く。
@@ -279,7 +286,7 @@ async function openShoot(f, mode){
   target=f; shootMode=mode||'new';
   $('who').textContent=f.emo+' '+f.nm+(shootMode==='jitter'?' の2回目':' をさつえい');
   $('shoot').classList.add('on'); $('msg').textContent='じゅんびちゅう…';
-  buf=[]; holdOK=0;
+  buf=[]; phase='idle'; $('shutter').disabled=true;
   if(!landmarker){
     try{ await loadMP(); }catch(e){
       const framed=(()=>{try{return window.self!==window.top}catch(_){return true}})();
@@ -300,14 +307,24 @@ async function openShoot(f, mode){
       if(!landmarker){ $('msg').textContent='E3 モデルをよみこめません'; $('sub').textContent=String(err&&err.message||err); return; }
     }catch(e){ $('msg').textContent='E2 WASM をよみこめません'; return; }
   }
-  if(!stream){
+  // トラックが生きていなければ取り直す（2回目以降に起動しない原因）
+  const tr = stream && stream.getVideoTracks()[0];
+  if(!stream || !tr || tr.readyState!=='live'){
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=null;
     try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false}); }
     catch(e){ $('msg').textContent='E4 カメラをひらけません'; $('sub').textContent='カメラの許可と https:// を確認してください。'; return; }
-    vid.srcObject=stream; await vid.play().catch(()=>{});
+    vid.srcObject=stream;
   }
-  lastT=-1; if(!running){ running=true; loop(); }
+  // 画面を閉じている間に一時停止されることがあるので毎回呼ぶ
+  await vid.play().catch(()=>{});
+  lastT=-1; running=true; loop();
 }
-function closeShoot(){ $('shoot').classList.remove('on'); target=null; renderGrid(); }
+function closeShoot(){
+  running=false;                 // ループを止める（開くたびに張り直す）
+  $('shoot').classList.remove('on'); target=null; phase='idle'; buf=[];
+  renderGrid();
+}
 $('close').onclick=closeShoot;
 
 function fitCanvas(){
@@ -318,16 +335,20 @@ function fitCanvas(){
 }
 addEventListener('resize',fitCanvas);
 
+/* requestVideoFrameCallback は映像が止まると連鎖が切れて復帰しないため、
+   requestAnimationFrame で回す。画面を閉じたら止め、開くたびに張り直す。
+   loopId で多重起動を防ぐ。 */
 function loop(){
+  const my=++loopId;
   const step=()=>{
+    if(my!==loopId || !running) return;
     if(target && vid.readyState>=2 && landmarker){
       if(cv.width!==vid.videoWidth){ cv.width=vid.videoWidth; cv.height=vid.videoHeight; fitCanvas(); }
       if(vid.currentTime!==lastT){ lastT=vid.currentTime; tick(); }
     }
-    if('requestVideoFrameCallback' in HTMLVideoElement.prototype) vid.requestVideoFrameCallback(step);
-    else requestAnimationFrame(step);
+    requestAnimationFrame(step);
   };
-  step();
+  requestAnimationFrame(step);
 }
 
 const NEED=24;                 // 平均するフレーム数
@@ -337,12 +358,10 @@ function tick(){
 
   let res=null; try{ res=landmarker.detectForVideo(vid, performance.now()); }catch(e){}
   const faces=res&&res.faceLandmarks||[];
-  if(!faces.length){ msg('顔が見つかりません','もうすこし近づいてください'); holdOK=0; buf=[]; bar(0); return; }
+  if(!faces.length){ msg('顔が見つかりません','もうすこし近づいてください'); reset(); return; }
   const lm=faces[0], ar=W/H;
   const n=normalize(lm,ar);
   const q=quality(n);
-
-  // 大きさ（画素）で解像度を担保
   const eyePx=Math.hypot((lm[263].x-lm[33].x)*W,(lm[263].y-lm[33].y)*H);
 
   for(const p of lm){ const x=(1-p.x)*W, y=p.y*H;
@@ -351,18 +370,37 @@ function tick(){
 
   $('diag').textContent='正面度(yaw) '+q.yaw.toFixed(3)+' / 口のあき '+q.open.toFixed(3)
     +' / 目の幅 '+Math.round(eyePx)+'px\n閾値: yaw<0.10, あき<0.07, 幅>=90px';
+
   let ng=null;
   if(eyePx<90) ng=['ちいさすぎます','顔を画面いっぱいに'];
   else if(q.yaw>0.10) ng=['よこを向いています','まっすぐカメラを見て'];
   else if(q.open>0.07) ng=['口があいています','口をとじてください'];
-  if(ng){ holdOK=0; buf=[]; bar(0); msg(ng[0],ng[1]); return; }
 
-  holdOK++;
-  if(holdOK>6) buf.push(n);
+  const now=performance.now();
+
+  if(phase==='idle'){
+    $('shutter').disabled = !!ng;
+    msg(ng?ng[0]:'じゅんびOK', ng?ng[1]:'ボタンを押すと3秒後にとります');
+    bar(0); return;
+  }
+
+  if(phase==='count'){
+    if(ng){ phase='idle'; msg('やりなおし', ng[1]); bar(0); return; }
+    const left=(COUNT-(now-tCount))/1000;
+    msg(Math.max(1,Math.ceil(left))+'…','うごかないでください');
+    bar(1-left/(COUNT/1000));
+    if(left<=0){ phase='shoot'; buf=[]; tShoot=now; }
+    return;
+  }
+
+  // phase==='shoot'：条件を満たすフレームだけを集める
+  if(!ng) buf.push(n);
   bar(buf.length/NEED);
-  msg(buf.length? 'そのまま…' : 'いいかんじ', 'うごかないでください');
-  if(buf.length>=NEED) finish();
+  msg('そのまま…', ng?ng[1]:'うごかないでください');
+  if(buf.length>=NEED){ phase='idle'; finish(); return; }
+  if(now-tShoot>LIMIT){ phase='idle'; buf=[]; bar(0); msg('うまくとれませんでした','もう一度ボタンを押してください'); }
 }
+function reset(){ phase='idle'; buf=[]; bar(0); $('shutter').disabled=true; }
 const msg=(a,b)=>{ $('msg').textContent=a; $('sub').textContent=b; };
 const bar=r=>{ $('bar').firstElementChild.style.width=Math.min(100,r*100)+'%'; };
 
@@ -391,6 +429,7 @@ function finish(){
     msg('できました！','');
   }
   store(DB);
+  $('shutter').disabled=true; bar(1);
   setTimeout(closeShoot,600);
 }
 
