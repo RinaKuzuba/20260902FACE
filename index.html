@@ -3,274 +3,326 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>顔ランドマーク・ドット表示</title>
+<title>骨格そっくりさん判定</title>
 <style>
   :root{
-    --bg:#12161c; --panel:#1b212a; --line:#2b3441;
-    --fg:#e6ebf2; --dim:#8c98a8;
-    --eye:#4dd2ff; --nose:#ffc247; --mouth:#ff6fa8; --mesh:#7de3a0;
+    --bg:#141118; --card:#1e1a24; --line:#332c3d; --fg:#f0eaf5; --dim:#9b8fa8;
+    --accent:#ffb3c7;
   }
   *{box-sizing:border-box}
   html,body{margin:0}
-  body{
-    background:var(--bg); color:var(--fg); min-height:100%;
+  body{background:var(--bg);color:var(--fg);min-height:100%;
     font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
-    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  }
-  header{padding:8px 14px 4px}
-  h1{margin:0;font-size:.95rem;font-weight:600;letter-spacing:.04em}
-  header p{margin:2px 0 0;font-size:.7rem;color:var(--dim)}
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  header{padding:12px 16px 6px}
+  h1{margin:0;font-size:1.05rem;font-weight:700;letter-spacing:.03em}
+  header p{margin:3px 0 0;font-size:.72rem;color:var(--dim);line-height:1.6}
+  .wrap{padding:0 12px 24px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .slot{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 6px;
+    text-align:center;cursor:pointer;min-height:118px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px}
+  .slot .emo{font-size:1.7rem;line-height:1}
+  .slot .nm{font-size:.76rem;font-weight:600}
+  .slot .st{font-size:.62rem;color:var(--dim)}
+  .slot canvas{background:#0e0c11;border-radius:8px}
+  .slot.done{border-color:var(--accent)}
+  button{font:inherit;cursor:pointer}
+  .btn{width:100%;padding:14px;border-radius:12px;border:0;font-weight:700;font-size:.95rem;
+    background:var(--accent);color:#2a1420;margin-top:12px}
+  .btn[disabled]{opacity:.35}
+  .btn.sub{background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:500;font-size:.8rem;padding:11px}
 
-  #stage{position:relative;margin:6px 10px;background:#000;border:1px solid var(--line);
-    border-radius:10px;overflow:hidden;min-height:180px;display:flex;justify-content:center}
-  /* 映像は canvas の中に描くので、video 自体は表示しない（再生は継続させる） */
+  /* 撮影画面 */
+  #shoot{position:fixed;inset:0;background:#0b090e;display:none;flex-direction:column;z-index:20}
+  #shoot.on{display:flex}
+  #shoot .top{padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+  #shoot .who{font-size:1rem;font-weight:700}
+  #close{background:transparent;border:1px solid var(--line);color:var(--dim);border-radius:10px;padding:8px 14px;font-size:.8rem}
+  #camwrap{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #cv{display:block;max-width:100%}
   #vid{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-  #ov{display:block;max-width:100%}
+  #guide{padding:10px 16px 20px;text-align:center}
+  #msg{font-size:.95rem;font-weight:700;min-height:1.4em}
+  #bar{height:6px;background:#2a2431;border-radius:99px;margin:10px auto 0;max-width:320px;overflow:hidden}
+  #bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .12s}
+  #sub{font-size:.7rem;color:var(--dim);margin-top:8px;line-height:1.6}
 
-  #curtain{position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px;background:#0d1116}
-  #curtain.hide{display:none}
-  #start{font:inherit;font-size:1rem;font-weight:600;color:#0d1116;background:var(--mesh);
-    border:0;border-radius:999px;padding:14px 30px;cursor:pointer}
-  #start:focus-visible{outline:3px solid var(--eye);outline-offset:3px}
-  #curtain p{margin:0;font-size:.78rem;color:var(--dim);line-height:1.7;max-width:32ch}
-  #err{color:#ff9d9d;font-size:.8rem;line-height:1.6;max-width:36ch}
-  #err b{display:block;font-size:.9rem;margin-bottom:4px}
-
-  #stats{position:absolute;left:8px;top:8px;font-size:.64rem;color:var(--dim);
-    background:rgba(13,17,22,.62);padding:3px 7px;border-radius:6px}
-
-  .panel{margin:0 10px 8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    padding:8px 12px;display:flex;flex-direction:column;gap:8px}
-  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .row>span.lb{font-size:.75rem;color:var(--dim);min-width:4.5em}
-  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .seg button{font:inherit;font-size:.78rem;color:var(--dim);background:transparent;border:0;
-    padding:8px 12px;cursor:pointer;min-height:38px}
-  .seg button[aria-pressed="true"]{background:#2a3341;color:var(--fg)}
-  .seg button+button{border-left:1px solid var(--line)}
-  input[type=range]{flex:1;min-width:100px;accent-color:var(--eye)}
-  label.chk{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--dim);min-height:38px}
-  input[type=checkbox]{width:18px;height:18px;accent-color:var(--eye)}
-  #flip{font:inherit;font-size:.78rem;color:var(--fg);background:#2a3341;border:1px solid var(--line);
-    border-radius:8px;padding:8px 14px;min-height:38px;cursor:pointer}
-  details{font-size:.72rem;color:var(--dim)}
-  details pre{margin:6px 0 0;white-space:pre-wrap;word-break:break-all;font-size:.68rem;line-height:1.6}
-  .key{display:flex;gap:12px;font-size:.7rem;color:var(--dim);flex-wrap:wrap}
-  .key i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  /* 結果 */
+  .res{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}
+  .res h2{margin:0 0 8px;font-size:.82rem;color:var(--dim);font-weight:600}
+  .pair{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:.9rem}
+  .pair:first-of-type{border-top:0}
+  .pair .rk{font-size:.7rem;color:var(--dim);width:2.1em}
+  .pair .sc{margin-left:auto;font-weight:700;font-size:1rem}
+  .parts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .part{background:#241f2b;border-radius:10px;padding:8px 10px}
+  .part b{display:block;font-size:.68rem;color:var(--dim);font-weight:600}
+  .part span{font-size:.88rem}
+  .note{font-size:.68rem;color:var(--dim);line-height:1.7;margin-top:10px}
+  #sheet{position:fixed;inset:0;background:rgba(10,8,13,.72);display:none;z-index:30;
+    align-items:flex-end;justify-content:center}
+  #sheet.on{display:flex}
+  .sheetbox{background:var(--card);border:1px solid var(--line);border-radius:18px 18px 0 0;
+    width:100%;max-width:520px;padding:16px 14px calc(18px + env(safe-area-inset-bottom))}
+  .sheetbox h3{margin:0 0 4px;font-size:1rem}
+  .sheetbox p{margin:0 0 6px;font-size:.7rem;color:var(--dim);line-height:1.6}
+  /* 発表演出 */
+  .reveal{background:var(--card);border:1px solid var(--accent);border-radius:16px;
+    padding:22px 14px;text-align:center;margin-top:10px}
+  .reveal .rank{font-size:.75rem;color:var(--dim);letter-spacing:.1em}
+  .reveal .who2{font-size:1.25rem;font-weight:700;margin:8px 0}
+  .reveal .big{font-size:2.4rem;font-weight:800;color:var(--accent);line-height:1}
+  .done-list .pair{opacity:.75}
+  details{font-size:.7rem;color:var(--dim);margin-top:10px}
+  details pre{white-space:pre-wrap;word-break:break-all;font-size:.66rem;line-height:1.6}
 </style>
 </head>
 <body>
-<header id="head">
-  <h1>顔ランドマーク・ドット表示</h1>
-  <p>目・鼻・口に点を重ねます。映像は端末内だけで処理し、保存も送信もしません。</p>
+<header>
+  <h1>骨格そっくりさん判定</h1>
+  <p>髪型もヒゲも見ません。目・鼻・口・輪郭の配置だけで、誰と誰が近いかを出します。写真は保存しません。</p>
 </header>
 
-<div id="stage">
-  <video id="vid" playsinline muted autoplay></video>
-  <canvas id="ov"></canvas>
-  <div id="stats"></div>
-  <div id="curtain">
-    <button id="start">カメラを開始</button>
-    <p>初回はモデルの読み込みに数秒かかります（通信が必要）。</p>
-    <div id="err"></div>
-  </div>
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <button class="btn" id="go" disabled>結果を見る</button>
+  <div id="out"></div>
+  <button class="btn sub" id="wipe">ぜんぶ消す</button>
+  <p class="note" id="ttl"></p>
+  <details><summary>診断情報</summary><pre id="diag">未起動</pre></details>
 </div>
 
-<div class="panel" id="panel">
-  <div class="row">
-    <span class="lb">表示する点</span>
-    <div class="seg" id="mode">
-      <button data-v="4" aria-pressed="true">4点</button>
-      <button data-v="8" aria-pressed="false">口の輪郭も</button>
-      <button data-v="all" aria-pressed="false">全点</button>
-    </div>
+<div id="sheet"><div class="sheetbox">
+  <h3 id="shTitle"></h3>
+  <p id="shSub"></p>
+  <button class="btn" id="shRetake">撮りなおす</button>
+  <button class="btn sub" id="shJit">ブレを測る（もう一度撮る）</button>
+  <button class="btn sub" id="shCancel">とじる</button>
+</div></div>
+
+<div id="shoot">
+  <div class="top"><div class="who" id="who"></div><button id="close">やめる</button></div>
+  <div id="camwrap"><video id="vid" playsinline muted autoplay></video><canvas id="cv"></canvas></div>
+  <div id="guide">
+    <div id="msg">じゅんびちゅう…</div>
+    <div id="bar"><i></i></div>
+    <div id="sub">正面をむいて、口をとじてください</div>
   </div>
-  <div class="row">
-    <span class="lb">点の大きさ</span>
-    <input type="range" id="size" min="2" max="16" step="1" value="6">
-  </div>
-  <div class="row">
-    <label class="chk"><input type="checkbox" id="mirror" checked>左右反転</label>
-    <label class="chk"><input type="checkbox" id="labels">名前を出す</label>
-    <label class="chk"><input type="checkbox" id="smooth" checked>ゆれ止め</label>
-    <button id="flip">カメラ切替</button>
-  </div>
-  <div class="key">
-    <span><i style="background:var(--eye)"></i>目</span>
-    <span><i style="background:var(--nose)"></i>鼻</span>
-    <span><i style="background:var(--mouth)"></i>口</span>
-  </div>
-  <details>
-    <summary>診断情報</summary>
-    <pre id="diag">未起動</pre>
-  </details>
 </div>
 
 <script type="module">
 /* ============================================================
-   ライブラリ読み込み
-   パッケージのルートURLは main(=.cjs) に解決されるため、
-   ESM では vision_bundle.mjs を明示する（検証済み）。
+   ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
-const MP = {
-  versions: ["1.0.1", "0.10.14"],
-  cdns: ["https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@",
-         "https://unpkg.com/@mediapipe/tasks-vision@"],
-};
-const MODELS = [
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
-];
-let FilesetResolver=null, FaceLandmarker=null, wasmBase=null, mpTag='';
-
+const MP={versions:["1.0.1","0.10.14"],
+  cdns:["https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@","https://unpkg.com/@mediapipe/tasks-vision@"]};
+const MODELS=["https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"];
+let FilesetResolver,FaceLandmarker,wasmBase,mpTag='';
 async function loadMP(){
   let last;
   for(const v of MP.versions) for(const cdn of MP.cdns){
-    const root = cdn + v;
+    const root=cdn+v;
     try{
-      const m = await import(root + "/vision_bundle.mjs");
-      if(!m.FilesetResolver || !m.FaceLandmarker) throw new Error('exports missing');
+      const m=await import(root+"/vision_bundle.mjs");
+      if(!m.FilesetResolver||!m.FaceLandmarker) throw new Error('exports missing');
       FilesetResolver=m.FilesetResolver; FaceLandmarker=m.FaceLandmarker;
-      wasmBase=root+"/wasm"; mpTag=v+' ('+(cdn.includes('jsdelivr')?'jsDelivr':'unpkg')+')';
-      return;
+      wasmBase=root+"/wasm"; mpTag=v+(cdn.includes('jsdelivr')?' jsDelivr':' unpkg'); return;
     }catch(e){ last=e; }
   }
   throw last;
 }
 
-/* ランドマーク番号（1.0.1 の公式定数から実データで確認）
-   鼻先 1 のみキャノニカル定義由来で未検証 */
-const IDX = {
-  eyeR:[33,133,159,145], eyeL:[362,263,386,374],
-  irisR:468, irisL:473,
-  nose:1, mouthTop:13, mouthBottom:14, mouthLeft:61, mouthRight:291,
-};
+/* 公式定数から実データで確認した番号（鼻だけは幾何的に自動選択する） */
+const EYES=[7,33,133,144,145,153,154,155,157,158,159,160,161,163,173,246,
+            249,263,362,373,374,380,381,382,384,385,386,387,388,390,398,466];
+const LIPS=[0,13,14,17,37,39,40,61,78,80,81,82,84,87,88,91,95,146,178,181,185,191,267,269,270,291,
+            308,310,311,312,314,317,318,321,324,375,402,405,409,415];
+const OVAL=[10,21,54,58,67,93,103,109,127,132,136,148,149,150,152,162,172,176,234,251,284,288,297,
+            323,332,338,356,361,365,377,378,379,389,397,400,454];
+
+/* 丸い形のフルーツで統一。輪郭の点の色に使うので、色は互いに離す */
+const FRUITS=[
+  {id:'ringo',   emo:'🍎', nm:'りんご',     col:'#ff6b6b'},
+  {id:'mikan',   emo:'🍊', nm:'みかん',     col:'#ffa94d'},
+  {id:'momo',    emo:'🍑', nm:'もも',       col:'#ff9ec4'},
+  {id:'meron',   emo:'🍈', nm:'めろん',     col:'#d7e07a'},
+  {id:'buruberi',emo:'🫐', nm:'ぶるーべり', col:'#8f8cff'},
+  {id:'aoringo', emo:'🍏', nm:'あおりんご', col:'#4fd18b'},
+];
+
+/* ============================================================
+   保存：10時間で自動削除。写真も生の478点も保存しない。
+   端末の時計を変えられると削除は回避できるので、保証ではなく運用上の仕組み。
+   ============================================================ */
+const KEY='kao.fruit.v1', TTL=10*3600*1000;
+let mem=null;
+function store(o){ try{ localStorage.setItem(KEY,JSON.stringify(o)); }catch(e){ mem=o; } }
+function load(){
+  let o=null;
+  try{ o=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){}
+  if(!o) o=mem;
+  if(!o) o={schema:null, people:{}};
+  const now=Date.now(); let ch=false;
+  for(const k of Object.keys(o.people||{})) if(now-o.people[k].t>TTL){ delete o.people[k]; ch=true; }
+  if(ch) store(o);
+  return o;
+}
+let DB=load();
 
 const $=id=>document.getElementById(id);
-const vid=$('vid'), ov=$('ov'), octx=ov.getContext('2d');
-const curtain=$('curtain'), errBox=$('err'), stats=$('stats'), diag=$('diag');
+const vid=$('vid'), cv=$('cv'), cx=cv.getContext('2d');
+let landmarker=null, stream=null, target=null, running=false, lastT=-1, shootMode='new';
+let buf=[], holdOK=0;
 
-let landmarker=null, stream=null, facing='user', running=false;
-let mode='4', dotSize=6, mirror=true, showLabels=false, smoothing=true;
-let prev=[], lastVideoTime=-1, frames=0, fpsT=0, fps=0, faceCount=0, lmCount=0, argminZ=-1;
-let dispW=0, dispH=0;
+/* ============================================================
+   正規化：両目の外側の角を基準に、平行移動・回転・大きさを取り除く。
+   x は縦横比を掛けて正方画素に直す（これを忘れるとカメラの縦横比で結果が変わる）。
+   ============================================================ */
+function normalize(lm, ar){
+  const a=lm[33], b=lm[263];
+  const ax=a.x*ar, bx=b.x*ar;
+  const cx0=(ax+bx)/2, cy0=(a.y+b.y)/2;
+  const dx=bx-ax, dy=b.y-a.y, d=Math.hypot(dx,dy)||1e-6;
+  const c=dx/d, s=dy/d;
+  return lm.map(p=>{
+    const ux=(p.x*ar-cx0)/d, uy=(p.y-cy0)/d;
+    return {x:ux*c+uy*s, y:-ux*s+uy*c};
+  });
+}
+/* 正面度と口の開き（正規化後の座標で判定） */
+function quality(n){
+  const L=Math.abs(n[234].x), R=Math.abs(n[454].x);
+  const yaw=Math.abs(R-L)/(R+L||1);          // 0 が正面
+  const roll=0;                               // 回転は正規化で除去済み
+  const open=Math.abs(n[14].y-n[13].y);       // 口の開き
+  return {yaw, open, roll};
+}
+/* 鼻の点を幾何的に選ぶ（番号を記憶に頼らない）。初回に決めて保存し、以後固定 */
+function buildSchema(n){
+  const used=new Set([...EYES,...LIPS,...OVAL]);
+  const nose=[];
+  for(let i=0;i<n.length && i<468;i++){
+    if(used.has(i)) continue;
+    if(Math.abs(n[i].x)<0.30 && n[i].y>0.10 && n[i].y<0.55) nose.push(i);
+  }
+  const thin=(a,k)=>a.filter((_,i)=>i%k===0);
+  return { eyes:EYES, nose:thin(nose,Math.max(1,Math.ceil(nose.length/20))).slice(0,20),
+           mouth:thin(LIPS,2), oval:thin(OVAL,2) };
+}
+const allIdx=s=>[...s.eyes,...s.nose,...s.mouth,...s.oval];
 
-/* ---- UI ---- */
-$('mode').addEventListener('click', e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  mode=b.dataset.v;
-  [...$('mode').children].forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
-});
-$('size').addEventListener('input', e=>dotSize=+e.target.value);
-$('mirror').addEventListener('change', e=>mirror=e.target.checked);
-$('labels').addEventListener('change', e=>showLabels=e.target.checked);
-$('smooth').addEventListener('change', e=>{ smoothing=e.target.checked; prev=[]; });
-$('flip').addEventListener('click', async()=>{
-  facing = facing==='user' ? 'environment' : 'user';
-  $('mirror').checked = mirror = (facing==='user');
-  await startCam();
-});
-$('start').addEventListener('click', boot, {once:true});
+/* 部位ごとの距離（小さいほど近い） */
+function dist(v1,v2,ids,map){
+  let s=0;
+  for(const i of ids){ const a=v1[map[i]], b=v2[map[i]];
+    s+=Math.hypot(a.x-b.x,a.y-b.y); }
+  return s/ids.length;
+}
 
-/* ---- 表示サイズ ----
-   ヘッダーと操作パネルの実測高さを引いた残りに収める。
-   canvas 自体に映像を描くので、ここで何倍に縮めても点はズレない。 */
+/* ---------------- 画面：一覧 ---------------- */
+function paintFace(cvs,v,schema,col){
+  const g=cvs.getContext('2d'); const W=cvs.width,H=cvs.height;
+  g.clearRect(0,0,W,H);
+  const S=W*0.42;
+  // 部位ごとに色を変える。鼻は幾何的に自動選択しているので、
+  // ここで鼻の位置に鼻色の点が乗っていれば選択が正しいと確認できる。
+  const n1=schema.eyes.length, n2=n1+schema.nose.length, n3=n2+schema.mouth.length;
+  const cols=['#8ecbff','#ffd35e','#ff8fb0',col];
+  v.forEach((p,i)=>{
+    g.fillStyle = i<n1?cols[0] : i<n2?cols[1] : i<n3?cols[2] : cols[3];
+    const x=W/2+p.x*S, y=H*0.40+p.y*S;
+    g.beginPath(); g.arc(x,y,Math.max(.9,W/90),0,6.284); g.fill();
+  });
+}
+function renderGrid(){
+  const g=$('grid'); g.innerHTML='';
+  for(const f of FRUITS){
+    const p=DB.people[f.id];
+    const el=document.createElement('div');
+    el.className='slot'+(p?' done':'');
+    if(p){
+      el.innerHTML='<canvas width="78" height="78"></canvas><div class="nm">'+f.emo+' '+f.nm+'</div>'
+        +(p.dself!=null?'<div class="st">ブレ測定ずみ</div>':'');
+      setTimeout(()=>paintFace(el.querySelector('canvas'), p.v, DB.schema, f.col),0);
+    }else{
+      el.innerHTML='<div class="emo">'+f.emo+'</div><div class="nm">'+f.nm+'</div><div class="st">タップして撮影</div>';
+    }
+    el.onclick=()=> DB.people[f.id] ? openSheet(f) : openShoot(f,'new');
+    g.appendChild(el);
+  }
+  const n=Object.keys(DB.people).length;
+  $('go').disabled = n<2;
+  $('go').textContent = n<2 ? 'あと'+(2-n)+'人ぶん撮ってください' : '結果を見る（'+n+'人）';
+  const ts=Object.values(DB.people).map(p=>p.t);
+  $('ttl').textContent = ts.length ? '最初のデータは約'+Math.max(0,Math.round((TTL-(Date.now()-Math.min(...ts)))/3600000))+'時間後に自動で消えます。' : '';
+}
+
+/* 撮影済みの枠をタップしたときの選択 */
+let sheetFruit=null;
+function openSheet(f){
+  sheetFruit=f;
+  $('shTitle').textContent=f.emo+' '+f.nm;
+  const p=DB.people[f.id];
+  $('shSub').textContent = p.dself!=null
+    ? 'ブレは測定ずみです（もう一度測ると上書きします）'
+    : '「ブレを測る」は同じ人をもう一度撮って、測定のばらつきを調べます。結果がどこまで信用できるかの目安になります。';
+  $('sheet').classList.add('on');
+}
+$('shCancel').onclick=()=>$('sheet').classList.remove('on');
+$('shRetake').onclick=()=>{ $('sheet').classList.remove('on'); openShoot(sheetFruit,'new'); };
+$('shJit').onclick  =()=>{ $('sheet').classList.remove('on'); openShoot(sheetFruit,'jitter'); };
+
+/* ---------------- 撮影 ---------------- */
+async function openShoot(f, mode){
+  target=f; shootMode=mode||'new';
+  $('who').textContent=f.emo+' '+f.nm+(shootMode==='jitter'?' の2回目':' をさつえい');
+  $('shoot').classList.add('on'); $('msg').textContent='じゅんびちゅう…';
+  buf=[]; holdOK=0;
+  if(!landmarker){
+    try{ await loadMP(); }catch(e){
+      const framed=(()=>{try{return window.self!==window.top}catch(_){return true}})();
+      $('msg').textContent='E1 よみこめません';
+      $('sub').textContent = framed?'このプレビューは外部CDNを遮断します。保存してブラウザで開いてください。':'通信を確認してください。';
+      return;
+    }
+    try{
+      const fs=await FilesetResolver.forVisionTasks(wasmBase);
+      let err;
+      outer: for(const url of MODELS) for(const dg of ['GPU','CPU']){
+        try{ landmarker=await FaceLandmarker.createFromOptions(fs,{
+          baseOptions:{modelAssetPath:url,delegate:dg}, runningMode:'VIDEO', numFaces:1,
+          minFaceDetectionConfidence:.4, minFacePresenceConfidence:.4, minTrackingConfidence:.4});
+          $('diag').textContent='tasks-vision '+mpTag+' / '+dg; break outer;
+        }catch(e){ err=e; }
+      }
+      if(!landmarker){ $('msg').textContent='E3 モデルをよみこめません'; $('sub').textContent=String(err&&err.message||err); return; }
+    }catch(e){ $('msg').textContent='E2 WASM をよみこめません'; return; }
+  }
+  if(!stream){
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false}); }
+    catch(e){ $('msg').textContent='E4 カメラをひらけません'; $('sub').textContent='カメラの許可と https:// を確認してください。'; return; }
+    vid.srcObject=stream; await vid.play().catch(()=>{});
+  }
+  lastT=-1; if(!running){ running=true; loop(); }
+}
+function closeShoot(){ $('shoot').classList.remove('on'); target=null; renderGrid(); }
+$('close').onclick=closeShoot;
+
 function fitCanvas(){
   const vw=vid.videoWidth||1280, vh=vid.videoHeight||720;
-  const availW = $('stage').clientWidth;
-  const used = $('head').getBoundingClientRect().height
-             + $('panel').getBoundingClientRect().height + 34;
-  const availH = Math.max(160, (window.innerHeight||640) - used);
-  const s = Math.min(availW/vw, availH/vh);
-  dispW = Math.round(vw*s); dispH = Math.round(vh*s);
-  ov.style.width = dispW+'px'; ov.style.height = dispH+'px';
+  const box=$('camwrap').getBoundingClientRect();
+  const s=Math.min(box.width/vw, box.height/vh);
+  cv.style.width=Math.round(vw*s)+'px'; cv.style.height=Math.round(vh*s)+'px';
 }
-addEventListener('resize', fitCanvas);
-addEventListener('orientationchange', ()=>setTimeout(fitCanvas,300));
-vid.addEventListener('loadedmetadata', fitCanvas);
+addEventListener('resize',fitCanvas);
 
-function bail(code, detail){
-  errBox.innerHTML='<b>'+code+'</b>'+detail;
-  $('start').textContent='もう一度試す'; $('start').disabled=false;
-  $('start').addEventListener('click', boot, {once:true});
-  curtain.classList.remove('hide');
-}
-
-/* ---- 起動 ---- */
-async function boot(){
-  errBox.textContent=''; $('start').textContent='読み込み中…'; $('start').disabled=true;
-
-  try{ await loadMP(); }
-  catch(e){
-    const framed=(()=>{try{return window.self!==window.top;}catch(_){return true;}})();
-    return bail('E1 モジュールを取得できませんでした',
-      framed ? 'このプレビュー画面は外部CDNを遮断します。保存してブラウザで直接開くか、GitHub Pages に置いてください。'
-             : 'ネットワーク接続を確認してください。');
-  }
-
-  let fs;
-  try{ fs = await FilesetResolver.forVisionTasks(wasmBase); }
-  catch(e){ return bail('E2 WASM を取得できませんでした','CDN への接続が途中で切れています。'); }
-
-  let lastErr=null, used='';
-  outer:
-  for(const url of MODELS) for(const delegate of ['GPU','CPU']){
-    try{
-      landmarker = await FaceLandmarker.createFromOptions(fs,{
-        baseOptions:{ modelAssetPath:url, delegate },
-        runningMode:'VIDEO', numFaces:2,
-        minFaceDetectionConfidence:0.4, minFacePresenceConfidence:0.4, minTrackingConfidence:0.4,
-      });
-      used = delegate+' / '+url.split('/').slice(-2).join('/'); break outer;
-    }catch(e){ lastErr=e; }
-  }
-  if(!landmarker) return bail('E3 モデルを読み込めませんでした', String(lastErr&&lastErr.message||lastErr));
-
-  diag.textContent='tasks-vision '+mpTag+'\nmodel: '+used;
-  if(!await startCam()) return;
-  curtain.classList.add('hide');
-  if(!running){ running=true; loop(); }
-}
-
-async function startCam(){
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:facing, width:{ideal:1280}, height:{ideal:720} }, audio:false });
-  }catch(e){
-    bail('E4 カメラを開けませんでした',
-      'ブラウザのカメラ許可を確認してください。https:// でない場所（file:// や http://）ではカメラは使えません。');
-    return false;
-  }
-  vid.srcObject=stream;
-  await vid.play().catch(()=>{});
-  prev=[]; lastVideoTime=-1; fitCanvas();
-  return true;
-}
-
-/* ---- ループ ---- */
 function loop(){
   const step=()=>{
-    if(vid.readyState>=2 && landmarker){
-      if(ov.width!==vid.videoWidth || ov.height!==vid.videoHeight){
-        ov.width=vid.videoWidth; ov.height=vid.videoHeight; fitCanvas();
-      }
-      if(vid.currentTime!==lastVideoTime){
-        lastVideoTime=vid.currentTime;
-        let res=null;
-        try{ res=landmarker.detectForVideo(vid, performance.now()); }catch(e){}
-        render(res ? (res.faceLandmarks||[]) : []);
-      }
-      frames++;
-      const now=performance.now();
-      if(now-fpsT>500){
-        fps=Math.round(frames*1000/(now-fpsT)); frames=0; fpsT=now;
-        stats.textContent=fps+' fps ／ 顔 '+faceCount+' ／ 点 '+lmCount;
-        diag.textContent = diag.textContent.split('\n').slice(0,2).join('\n')
-          + '\nframe: '+vid.videoWidth+'x'+vid.videoHeight+' ／ 表示: '+dispW+'x'+dispH
-          + '\nlandmarks: '+lmCount+' ／ z最小の番号: '+argminZ+'（鼻先なら 1 前後）';
-      }
+    if(target && vid.readyState>=2 && landmarker){
+      if(cv.width!==vid.videoWidth){ cv.width=vid.videoWidth; cv.height=vid.videoHeight; fitCanvas(); }
+      if(vid.currentTime!==lastT){ lastT=vid.currentTime; tick(); }
     }
     if('requestVideoFrameCallback' in HTMLVideoElement.prototype) vid.requestVideoFrameCallback(step);
     else requestAnimationFrame(step);
@@ -278,67 +330,164 @@ function loop(){
   step();
 }
 
-/* ---- 描画 ----
-   映像と点を同じ canvas に描く。両者は同一ビットマップなので
-   レイアウトが何であってもズレない。 */
-const mean=(lm,ids)=>{
-  let x=0,y=0; for(const i of ids){ x+=lm[i].x; y+=lm[i].y; }
-  return {x:x/ids.length, y:y/ids.length};
+const NEED=24;                 // 平均するフレーム数
+function tick(){
+  const W=cv.width,H=cv.height;
+  cx.save(); cx.translate(W,0); cx.scale(-1,1); cx.drawImage(vid,0,0,W,H); cx.restore();
+
+  let res=null; try{ res=landmarker.detectForVideo(vid, performance.now()); }catch(e){}
+  const faces=res&&res.faceLandmarks||[];
+  if(!faces.length){ msg('顔が見つかりません','もうすこし近づいてください'); holdOK=0; buf=[]; bar(0); return; }
+  const lm=faces[0], ar=W/H;
+  const n=normalize(lm,ar);
+  const q=quality(n);
+
+  // 大きさ（画素）で解像度を担保
+  const eyePx=Math.hypot((lm[263].x-lm[33].x)*W,(lm[263].y-lm[33].y)*H);
+
+  for(const p of lm){ const x=(1-p.x)*W, y=p.y*H;
+    cx.beginPath(); cx.arc(x,y,Math.max(1,W/420),0,6.284);
+    cx.fillStyle='rgba(255,179,199,.75)'; cx.fill(); }
+
+  $('diag').textContent='正面度(yaw) '+q.yaw.toFixed(3)+' / 口のあき '+q.open.toFixed(3)
+    +' / 目の幅 '+Math.round(eyePx)+'px\n閾値: yaw<0.10, あき<0.07, 幅>=90px';
+  let ng=null;
+  if(eyePx<90) ng=['ちいさすぎます','顔を画面いっぱいに'];
+  else if(q.yaw>0.10) ng=['よこを向いています','まっすぐカメラを見て'];
+  else if(q.open>0.07) ng=['口があいています','口をとじてください'];
+  if(ng){ holdOK=0; buf=[]; bar(0); msg(ng[0],ng[1]); return; }
+
+  holdOK++;
+  if(holdOK>6) buf.push(n);
+  bar(buf.length/NEED);
+  msg(buf.length? 'そのまま…' : 'いいかんじ', 'うごかないでください');
+  if(buf.length>=NEED) finish();
+}
+const msg=(a,b)=>{ $('msg').textContent=a; $('sub').textContent=b; };
+const bar=r=>{ $('bar').firstElementChild.style.width=Math.min(100,r*100)+'%'; };
+
+function finish(){
+  if(!DB.schema) DB.schema=buildSchema(buf[buf.length-1]);
+  const ids=allIdx(DB.schema);
+  const map={}; ids.forEach((v,i)=>map[v]=i);
+  const v=ids.map(i=>{
+    let x=0,y=0; for(const f of buf){ x+=f[i].x; y+=f[i].y; }
+    return {x:x/buf.length, y:y/buf.length};
+  });
+  // ブレ幅（この人の測定ノイズの目安）
+  let jit=0;
+  ids.forEach((i,k)=>{ let s=0; for(const f of buf) s+=Math.hypot(f[i].x-v[k].x,f[i].y-v[k].y); jit+=s/buf.length; });
+  jit/=ids.length;
+
+  const prev=DB.people[target.id];
+  if(shootMode==='jitter' && prev){
+    // 1回目の顔と2回目の顔の距離＝測り直しも含めた測定のブレ。
+    // 他人同士の差がこれを下回るなら、その差は読み取れていない。
+    prev.dself = dist(prev.v, v, allIdx(DB.schema), prev.map);
+    prev.t = Date.now();
+    msg('ブレを測りました','');
+  }else{
+    DB.people[target.id]={ v, jit, t:Date.now(), map };
+    msg('できました！','');
+  }
+  store(DB);
+  setTimeout(closeShoot,600);
+}
+
+/* ---------------- 結果 ---------------- */
+/* ---------------- 結果：計算 ---------------- */
+function computeResults(){
+  const ppl=FRUITS.filter(f=>DB.people[f.id]);
+  const S=DB.schema, map=DB.people[ppl[0].id].map;
+  const parts={ '目':S.eyes, '鼻':S.nose, '口':S.mouth, '輪郭':S.oval };
+  const all=allIdx(S);
+
+  const pairs=[];
+  for(let i=0;i<ppl.length;i++) for(let j=i+1;j<ppl.length;j++){
+    const A=DB.people[ppl[i].id], B=DB.people[ppl[j].id];
+    const pd={}; for(const k in parts) pd[k]=dist(A.v,B.v,parts[k],map);
+    pairs.push({a:ppl[i],b:ppl[j],d:dist(A.v,B.v,all,map),pd});
+  }
+  pairs.sort((x,y)=>x.d-y.d);
+  const dmin=pairs[0].d, dmax=pairs[pairs.length-1].d, rng=(dmax-dmin)||1;
+  const sc=d=>pairs.length<2?100:Math.round(100-40*(d-dmin)/rng);
+
+  const mean=all.map((idx,k)=>{
+    let x=0,y=0; for(const f of ppl){ const q=DB.people[f.id].v[k]; x+=q.x; y+=q.y; }
+    return {x:x/ppl.length,y:y/ppl.length};
+  });
+  const far=ppl.map(f=>({f,d:dist(DB.people[f.id].v,mean,all,map)})).sort((a,b)=>a.d-b.d);
+
+  // 測定のブレ：実測(自分×自分)があればそれを使う。無ければ撮影中のゆれで代用
+  const ds=ppl.map(f=>DB.people[f.id].dself).filter(x=>x!=null);
+  const noise = ds.length ? ds.reduce((a,b)=>a+b,0)/ds.length
+                          : ppl.reduce((a,f)=>a+DB.people[f.id].jit,0)/ppl.length*2;
+  return {ppl,pairs,parts,sc,far,rng,noise,measured:ds.length};
+}
+
+/* ---------------- 結果：1組ずつ発表 ---------------- */
+let R=null, revealIdx=-1;
+$('go').onclick=()=>{
+  R=computeResults(); revealIdx=R.pairs.length-1;
+  $('out').innerHTML='<div class="reveal"><div class="rank">総当たり '+R.pairs.length+'組</div>'
+    +'<div class="who2">下位から発表します</div></div>'
+    +'<button class="btn" id="next">はじめる</button><div class="done-list" id="dl"></div>';
+  $('next').onclick=stepReveal;
+  $('out').scrollIntoView({behavior:'smooth',block:'start'});
+};
+function stepReveal(){
+  if(revealIdx<0) return finishReveal();
+  const p=R.pairs[revealIdx], rank=revealIdx+1;
+  const top = rank===1;
+  document.querySelector('.reveal').innerHTML=
+     '<div class="rank">'+(top?'★ 第1位 ★':'第'+rank+'位')+'</div>'
+    +'<div class="who2">'+p.a.emo+p.a.nm+' × '+p.b.emo+p.b.nm+'</div>'
+    +'<div class="big">'+R.sc(p.d)+'</div>';
+  const dl=$('dl');
+  dl.insertAdjacentHTML('afterbegin','<div class="pair"><span class="rk">'+rank+'位</span><span>'
+    +p.a.emo+' × '+p.b.emo+'</span><span class="sc">'+R.sc(p.d)+'</span></div>');
+  revealIdx--;
+  $('next').textContent = revealIdx<0 ? 'くわしい結果を見る' : (revealIdx===0 ? '1位を発表' : 'つぎ');
+}
+function finishReveal(){
+  const {ppl,pairs,parts,sc,far,rng,noise,measured}=R;
+  let h='<div class="res"><h2>部位別のいちばん</h2><div class="parts">';
+  for(const k in parts){
+    const best=[...pairs].sort((x,y)=>x.pd[k]-y.pd[k])[0];
+    h+='<div class="part"><b>'+k+'</b><span>'+best.a.emo+' × '+best.b.emo+'</span></div>';
+  }
+  h+='</div></div>';
+  h+='<div class="res"><h2>みんなの平均に…</h2>'
+    +'<div class="pair"><span>いちばん近い（ふつう顔）</span><span class="sc">'+far[0].f.emo+far[0].f.nm+'</span></div>'
+    +'<div class="pair"><span>いちばん遠い（こせい派）</span><span class="sc">'+far[far.length-1].f.emo+far[far.length-1].f.nm+'</span></div></div>';
+
+  // 測定のブレを点数に換算して、順位が読み取れているかを判定
+  const noisePt = pairs.length<2 ? 0 : 40*noise/rng;
+  const gap = pairs.length<2 ? 0 : sc(pairs[0].d)-sc(pairs[1].d);
+  h+='<div class="res"><h2>この結果はどこまで信用できるか</h2>'
+    +'<div class="pair"><span>測定のブレ'+(measured?'（実測 '+measured+'人）':'（推定値）')+'</span><span class="sc">約'+noisePt.toFixed(1)+'点</span></div>'
+    +'<div class="pair"><span>1位と2位の点差</span><span class="sc">'+gap+'点</span></div>'
+    +'<p class="note">'+(pairs.length<2 ? 'ペアが1組しかないので順位はありません。3人以上で測ってください。'
+      : gap<=noisePt
+      ? '<b>点差がブレより小さいので、この1位はほぼ偶然です。</b>順位は読み取れていません。'
+      : '点差がブレを上回っているので、1位は測定のブレでは説明できません。')
+    +(measured? '' : '<br>※ブレは推定値です。撮影済みの枠をタップして「ブレを測る」を実行すると実測値になります。')
+    +'</p></div>';
+  h+='<p class="note">点数はこの'+ppl.length+'人の中での相対値です（100〜60）。別のメンバーで測ると数字は変わります。'
+    +'骨格の配置だけを見ており、血縁とは関係ありません。</p>';
+  $('out').insertAdjacentHTML('beforeend',h);
+  $('next').remove();
+}
+
+$('wipe').onclick=()=>{
+  if(!confirm('ぜんぶ消します。よろしいですか？')) return;
+  DB={schema:null,people:{}}; mem=null;
+  try{ localStorage.removeItem(KEY); }catch(e){}
+  $('out').innerHTML=''; renderGrid();
 };
 
-function render(faces){
-  const w=ov.width, h=ov.height;
-  octx.save();
-  if(mirror){ octx.translate(w,0); octx.scale(-1,1); }
-  octx.drawImage(vid,0,0,w,h);
-  octx.restore();
-
-  faceCount=faces.length;
-  if(!faces.length){ lmCount=0; prev=[]; return; }
-  lmCount=faces[0].length;
-
-  faces.forEach((raw,fi)=>{
-    let lm=raw;
-    if(smoothing && prev[fi] && prev[fi].length===raw.length){
-      const a=0.5, p=prev[fi];
-      lm = raw.map((q,i)=>({x:p[i].x+(q.x-p[i].x)*a, y:p[i].y+(q.y-p[i].y)*a, z:q.z}));
-    }
-    prev[fi]=lm;
-    if(fi===0){ let m=Infinity; for(let i=0;i<lm.length;i++) if(lm[i].z<m){ m=lm[i].z; argminZ=i; } }
-
-    const hasIris = lm.length>=478;
-    const eyeR = hasIris ? lm[IDX.irisR] : mean(lm,IDX.eyeR);
-    const eyeL = hasIris ? lm[IDX.irisL] : mean(lm,IDX.eyeL);
-
-    if(mode==='all') for(const p of lm) dot(p,'#7de3a0',Math.max(1.2,dotSize*0.28),null);
-    dot(eyeR,'#4dd2ff',dotSize,'右目');
-    dot(eyeL,'#4dd2ff',dotSize,'左目');
-    dot(lm[IDX.nose],'#ffc247',dotSize,'鼻');
-    dot(mean(lm,[IDX.mouthTop,IDX.mouthBottom]),'#ff6fa8',dotSize,'口');
-    if(mode==='8'){
-      for(const i of [IDX.mouthLeft,IDX.mouthRight,IDX.mouthTop,IDX.mouthBottom])
-        dot(lm[i],'#ff6fa8',dotSize*0.8,null);
-    }
-  });
-}
-
-function dot(p,color,r,label){
-  if(!p) return;
-  const s = ov.width/380;
-  const R = r*s*0.55;
-  const x = (mirror ? 1-p.x : p.x) * ov.width;
-  const y = p.y * ov.height;
-  octx.beginPath(); octx.arc(x,y,R,0,Math.PI*2);
-  octx.fillStyle=color; octx.globalAlpha=.95; octx.fill(); octx.globalAlpha=1;
-  octx.lineWidth=Math.max(1,R*.28); octx.strokeStyle='rgba(0,0,0,.55)'; octx.stroke();
-  if(label && showLabels){
-    octx.font=Math.round(13*s)+'px system-ui, sans-serif';
-    octx.textAlign='center'; octx.textBaseline='bottom';
-    octx.lineWidth=Math.max(2,3*s); octx.strokeStyle='rgba(0,0,0,.7)';
-    octx.strokeText(label,x,y-R-3*s);
-    octx.fillStyle=color; octx.fillText(label,x,y-R-3*s);
-  }
-}
+renderGrid();
+setInterval(()=>{ const b=Object.keys(DB.people).length; DB=load(); if(Object.keys(DB.people).length!==b) renderGrid(); }, 60000);
 </script>
 </body>
 </html>
