@@ -112,6 +112,7 @@
     <div id="bar"><i></i></div>
     <div id="sub">正面をむいて、口をとじてください</div>
     <button id="shutter" disabled>とる</button>
+    <button class="btn sub" id="retry" style="display:none;max-width:240px;margin:10px auto 0">カメラをやりなおす</button>
   </div>
 </div>
 
@@ -180,6 +181,7 @@ const vid=$('vid'), cv=$('cv'), cx=cv.getContext('2d');
 let landmarker=null, stream=null, target=null, running=false, lastT=-1, shootMode='new';
 let buf=[];
 let phase='idle', tCount=0, tShoot=0, loopId=0;
+let frameCount=0, watchdog=null;
 const COUNT=3000, LIMIT=8000;   // カウントダウン3秒、収集の打ち切り8秒
 $('shutter').onclick=()=>{ if(phase==='idle'){ phase='count'; tCount=performance.now(); buf=[]; } };
 
@@ -286,7 +288,7 @@ async function openShoot(f, mode){
   target=f; shootMode=mode||'new';
   $('who').textContent=f.emo+' '+f.nm+(shootMode==='jitter'?' の2回目':' をさつえい');
   $('shoot').classList.add('on'); $('msg').textContent='じゅんびちゅう…';
-  buf=[]; phase='idle'; $('shutter').disabled=true;
+  buf=[]; phase='idle'; $('shutter').disabled=true; $('retry').style.display='none';
   if(!landmarker){
     try{ await loadMP(); }catch(e){
       const framed=(()=>{try{return window.self!==window.top}catch(_){return true}})();
@@ -307,22 +309,47 @@ async function openShoot(f, mode){
       if(!landmarker){ $('msg').textContent='E3 モデルをよみこめません'; $('sub').textContent=String(err&&err.message||err); return; }
     }catch(e){ $('msg').textContent='E2 WASM をよみこめません'; return; }
   }
-  // トラックが生きていなければ取り直す（2回目以降に起動しない原因）
-  const tr = stream && stream.getVideoTracks()[0];
-  if(!stream || !tr || tr.readyState!=='live'){
-    if(stream) stream.getTracks().forEach(t=>t.stop());
-    stream=null;
-    try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false}); }
-    catch(e){ $('msg').textContent='E4 カメラをひらけません'; $('sub').textContent='カメラの許可と https:// を確認してください。'; return; }
-    vid.srcObject=stream;
+  // 状態を持ち越さない：毎回まっさらに取り直す
+  releaseCam();
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});
+  }catch(e){
+    $('msg').textContent='E4 カメラをひらけません';
+    $('sub').textContent='カメラの許可と https:// を確認してください。（'+(e&&e.name||e)+'）';
+    $('retry').style.display='block'; return;
   }
-  // 画面を閉じている間に一時停止されることがあるので毎回呼ぶ
-  await vid.play().catch(()=>{});
-  lastT=-1; running=true; loop();
+  vid.srcObject=stream;
+  try{ await vid.play(); }
+  catch(e){ $('sub').textContent='再生できません: '+(e&&e.name||e); }
+
+  lastT=-1; frameCount=0; running=true; loop();
+  clearTimeout(watchdog);
+  watchdog=setTimeout(()=>{ if(target && frameCount===0) reportStuck(); }, 3000);
 }
+
+function releaseCam(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); }
+  stream=null; try{ vid.srcObject=null; }catch(e){}
+}
+
+/* 3秒たってもフレームが来ないとき、内部状態をそのまま出す。
+   原因を推測で潰すより、事実を見せた方が早い。 */
+function reportStuck(){
+  const tr = stream && stream.getVideoTracks()[0];
+  $('msg').textContent='カメラが動きません';
+  $('sub').innerHTML='track: '+(tr?tr.readyState+' / enabled='+tr.enabled+' / muted='+tr.muted:'なし')
+    +'<br>video: paused='+vid.paused+' / readyState='+vid.readyState+' / '+vid.videoWidth+'x'+vid.videoHeight
+    +'<br>loop: running='+running+' / id='+loopId+' / frames='+frameCount;
+  $('retry').style.display='block';
+  $('shutter').disabled=true;
+}
+$('retry').onclick=()=>{ $('retry').style.display='none'; if(target) openShoot(target, shootMode); };
 function closeShoot(){
-  running=false;                 // ループを止める（開くたびに張り直す）
+  running=false; clearTimeout(watchdog);
+  releaseCam();                  // 状態を持ち越さない
   $('shoot').classList.remove('on'); target=null; phase='idle'; buf=[];
+  $('retry').style.display='none';
   renderGrid();
 }
 $('close').onclick=closeShoot;
@@ -344,7 +371,7 @@ function loop(){
     if(my!==loopId || !running) return;
     if(target && vid.readyState>=2 && landmarker){
       if(cv.width!==vid.videoWidth){ cv.width=vid.videoWidth; cv.height=vid.videoHeight; fitCanvas(); }
-      if(vid.currentTime!==lastT){ lastT=vid.currentTime; tick(); }
+      if(vid.currentTime!==lastT){ lastT=vid.currentTime; frameCount++; tick(); }
     }
     requestAnimationFrame(step);
   };
