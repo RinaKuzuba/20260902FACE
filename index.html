@@ -84,7 +84,7 @@
 <body>
 <header>
   <h1>骨格そっくりさん判定</h1>
-  <p>髪型もヒゲも見ません。目・鼻・口・輪郭の配置だけで、誰と誰が近いかを出します。写真は保存しません。</p>
+  <p>髪型もヒゲも見ません。目・鼻・口・輪郭の配置だけで、誰と誰が近いかを出します。写真は保存しません。<span id="ver"></span></p>
 </header>
 
 <div class="wrap">
@@ -120,6 +120,21 @@
 /* ============================================================
    ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
+const VER='v8';
+document.getElementById('ver').textContent=' ('+VER+')';
+
+/* どこで止まったかを常に追跡する。例外も全部拾って表示する */
+let stage='起動';
+const errlog=[];
+function logErr(kind,e){
+  errlog.push(kind+': '+String(e&&e.message||e).slice(0,120));
+  if(errlog.length>5) errlog.shift();
+  const d=document.getElementById('diag');
+  d.textContent=d.textContent.split('\n--- エラー')[0]+'\n--- エラー ---\n'+errlog.join('\n');
+}
+addEventListener('error', ev=>logErr('error', ev.error||ev.message));
+addEventListener('unhandledrejection', ev=>logErr('promise', ev.reason));
+
 const MP={versions:["1.0.1","0.10.14"],
   cdns:["https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@","https://unpkg.com/@mediapipe/tasks-vision@"]};
 const MODELS=["https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
@@ -289,7 +304,12 @@ async function openShoot(f, mode){
   $('who').textContent=f.emo+' '+f.nm+(shootMode==='jitter'?' の2回目':' をさつえい');
   $('shoot').classList.add('on'); $('msg').textContent='じゅんびちゅう…';
   buf=[]; phase='idle'; $('shutter').disabled=true; $('retry').style.display='none';
+  // 監視は一番最初に張る。どこで止まっても5秒後に必ず状況が表示される
+  stage='初期化';
+  clearTimeout(watchdog);
+  watchdog=setTimeout(()=>{ if(target && frameCount===0) reportStuck(); }, 5000);
   if(!landmarker){
+    stage='モデル読込';
     try{ await loadMP(); }catch(e){
       const framed=(()=>{try{return window.self!==window.top}catch(_){return true}})();
       $('msg').textContent='E1 よみこめません';
@@ -310,22 +330,28 @@ async function openShoot(f, mode){
     }catch(e){ $('msg').textContent='E2 WASM をよみこめません'; return; }
   }
   // 状態を持ち越さない：毎回まっさらに取り直す
+  stage='カメラ解放';
   releaseCam();
+  stage='カメラ要求';
   try{
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false});
+    // getUserMedia はエラーも返さずハングすることがあるため、8秒で打ち切る
+    stream=await Promise.race([
+      navigator.mediaDevices.getUserMedia(
+        {video:{facingMode:'user',width:{ideal:1280},height:{ideal:720}},audio:false}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout(8s)')),8000)),
+    ]);
   }catch(e){
+    logErr('getUserMedia',e);
     $('msg').textContent='E4 カメラをひらけません';
-    $('sub').textContent='カメラの許可と https:// を確認してください。（'+(e&&e.name||e)+'）';
+    $('sub').textContent=String(e&&e.name||e)+' ／ カメラの許可と https:// を確認してください。';
     $('retry').style.display='block'; return;
   }
+  stage='再生開始';
   vid.srcObject=stream;
-  try{ await vid.play(); }
-  catch(e){ $('sub').textContent='再生できません: '+(e&&e.name||e); }
+  // play() も返ってこないことがあるので待たない。フレームが来ればループが拾う
+  vid.play().then(()=>{ stage='ループ稼働'; }).catch(e=>logErr('play',e));
 
   lastT=-1; frameCount=0; running=true; loop();
-  clearTimeout(watchdog);
-  watchdog=setTimeout(()=>{ if(target && frameCount===0) reportStuck(); }, 3000);
 }
 
 function releaseCam(){
@@ -337,10 +363,13 @@ function releaseCam(){
    原因を推測で潰すより、事実を見せた方が早い。 */
 function reportStuck(){
   const tr = stream && stream.getVideoTracks()[0];
-  $('msg').textContent='カメラが動きません';
-  $('sub').innerHTML='track: '+(tr?tr.readyState+' / enabled='+tr.enabled+' / muted='+tr.muted:'なし')
+  $('msg').textContent='カメラが動きません（'+VER+'）';
+  $('sub').innerHTML='止まった段階: <b>'+stage+'</b>'
+    +'<br>track: '+(tr?tr.readyState+' / enabled='+tr.enabled+' / muted='+tr.muted:'なし')
     +'<br>video: paused='+vid.paused+' / readyState='+vid.readyState+' / '+vid.videoWidth+'x'+vid.videoHeight
-    +'<br>loop: running='+running+' / id='+loopId+' / frames='+frameCount;
+    +'<br>loop: running='+running+' / frames='+frameCount
+    +(errlog.length?'<br>err: '+errlog.join(' / '):'')
+    +'<br><b>この表示を撮影して送ってください</b>';
   $('retry').style.display='block';
   $('shutter').disabled=true;
 }
@@ -371,7 +400,11 @@ function loop(){
     if(my!==loopId || !running) return;
     if(target && vid.readyState>=2 && landmarker){
       if(cv.width!==vid.videoWidth){ cv.width=vid.videoWidth; cv.height=vid.videoHeight; fitCanvas(); }
-      if(vid.currentTime!==lastT){ lastT=vid.currentTime; frameCount++; tick(); }
+      if(vid.currentTime!==lastT){
+        lastT=vid.currentTime; frameCount++;
+        if(frameCount===1){ stage='ループ稼働'; clearTimeout(watchdog); }
+        tick();
+      }
     }
     requestAnimationFrame(step);
   };
