@@ -120,7 +120,7 @@
 /* ============================================================
    ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
-const VER='v8';
+const VER='v9';
 document.getElementById('ver').textContent=' ('+VER+')';
 
 /* どこで止まったかを常に追跡する。例外も全部拾って表示する */
@@ -304,6 +304,7 @@ async function openShoot(f, mode){
   $('who').textContent=f.emo+' '+f.nm+(shootMode==='jitter'?' の2回目':' をさつえい');
   $('shoot').classList.add('on'); $('msg').textContent='じゅんびちゅう…';
   buf=[]; phase='idle'; $('shutter').disabled=true; $('retry').style.display='none';
+  requestAnimationFrame(fitCanvas);   // 開くたびに必ずサイズを引き直す
   // 監視は一番最初に張る。どこで止まっても5秒後に必ず状況が表示される
   stage='初期化';
   clearTimeout(watchdog);
@@ -384,9 +385,15 @@ function closeShoot(){
 $('close').onclick=closeShoot;
 
 function fitCanvas(){
+  // 撮影画面が閉じているとき、中の要素の getBoundingClientRect は全部 0 を返す。
+  // スマホはアドレスバーの伸縮で resize が頻発するため、閉じている間に
+  // ここが走ると canvas が 0px にされ、以後表示されなくなる（v8までの不具合）。
+  if(!$('shoot').classList.contains('on')) return;
   const vw=vid.videoWidth||1280, vh=vid.videoHeight||720;
   const box=$('camwrap').getBoundingClientRect();
+  if(box.width<50 || box.height<50) return;   // レイアウト確定前・異常時は書かない
   const s=Math.min(box.width/vw, box.height/vh);
+  if(!isFinite(s) || s<=0) return;
   cv.style.width=Math.round(vw*s)+'px'; cv.style.height=Math.round(vh*s)+'px';
 }
 addEventListener('resize',fitCanvas);
@@ -402,7 +409,7 @@ function loop(){
       if(cv.width!==vid.videoWidth){ cv.width=vid.videoWidth; cv.height=vid.videoHeight; fitCanvas(); }
       if(vid.currentTime!==lastT){
         lastT=vid.currentTime; frameCount++;
-        if(frameCount===1){ stage='ループ稼働'; clearTimeout(watchdog); }
+        if(frameCount===1){ stage='ループ稼働'; clearTimeout(watchdog); fitCanvas(); }
         tick();
       }
     }
