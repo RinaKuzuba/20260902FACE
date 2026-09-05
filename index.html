@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>骨格そっくりさん判定</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Klee+One&text=%E3%81%98%E3%81%AE%E3%81%B8%E3%82%82&display=swap">
 <style>
   :root{
     --bg:#141118; --card:#1e1a24; --line:#332c3d; --fg:#f0eaf5; --dim:#9b8fa8;
@@ -79,7 +82,7 @@
     border-radius:10px;padding:8px 14px;font-size:.8rem}
   .mrow{display:flex;gap:8px;align-items:flex-start}
   #mCam{flex:1;min-width:0;width:100%;height:auto;border-radius:8px;background:#000}
-  #mRice{width:42%;max-width:180px;height:auto;background:#fbf5ea;border-radius:8px;image-rendering:pixelated}
+  #mRice{width:42%;max-width:180px;height:auto;background:#241f2b;border-radius:8px}
   .mctl label{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--dim);margin:6px 0}
   .mctl input{flex:1;accent-color:var(--accent)}
   .mctl output{min-width:2.6em;text-align:right;color:var(--accent);font-size:.74rem}
@@ -132,11 +135,9 @@
 
 <div id="meas"><div class="mbox">
   <div class="mtop"><b>測定モード</b><button id="mClose">とじる</button></div>
-  <div class="mrow"><canvas id="mCam"></canvas><canvas id="mRice" width="196" height="210"></canvas></div>
+  <div class="mrow"><canvas id="mCam"></canvas><canvas id="mRice" width="210" height="210"></canvas></div>
   <div class="mctl">
     <label>誇張率 <input type="range" id="mK" min="1" max="4" step="0.1"><output id="mKo"></output></label>
-    <label>大きさ <input type="range" id="mSZ" min="0.35" max="0.72" step="0.01"><output id="mSZo"></output></label>
-    <label>高さ <input type="range" id="mHI" min="0.25" max="0.60" step="0.01"><output id="mHIo"></output></label>
   </div>
   <table id="mTbl"></table>
   <div id="mPick" class="note"></div>
@@ -162,7 +163,7 @@
 /* ============================================================
    ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
-const VER='v16';
+const VER='v19';
 document.getElementById('ver').textContent=' ('+VER+')';
 
 /* どこで止まったかを常に追跡する。例外も全部拾って表示する */
@@ -217,29 +218,25 @@ const FRUITS=[
 /* ============================================================
    おむすび描画（調整台 t2 から移植）
    ============================================================ */
-const SPR={"cat1": "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", "cat2": "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", "cat3": "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"};
-const PROFILE={"cat1":[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[9.75,39.0],[9.75,39.0],[9.75,39.0],[9.75,39.0],[9.75,39.0],[9.75,39.0],[9.75,39.0],[10.0,38.75],[10.25,38.75],[10.25,38.75],[10.25,38.5],[9.75,38.75],[9.5,39.0],[9.25,39.25],[8.75,39.5],[8.75,39.5],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.5,40.0],[8.75,39.5],[8.75,39.5],[9.0,39.25],[9.25,39.25],[9.5,39.0],[9.75,38.75],[10.25,38.25],[10.5,37.75],[11.25,37.25],[11.75,36.75],[12.25,36.0],[13.0,35.25],[14.0,34.25],[15.0,33.25],[16.0,32.0],[17.75,30.5],[20.0,28.25],[0,0],[0,0]],"cat2":[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[21.5,27.25],[8.0,40.75],[8.0,40.75],[8.0,40.75],[8.0,40.75],[8.0,40.75],[8.0,40.75],[8.0,40.75],[8.0,40.75],[8.0,40.75],[8.0,40.75],[7.75,41.0],[7.25,41.5],[6.75,42.0],[6.25,42.25],[6.25,42.25],[6.0,42.5],[6.0,42.75],[5.5,43.0],[5.5,43.0],[5.5,43.0],[5.5,43.0],[5.5,43.0],[5.5,43.0],[5.5,43.0],[5.5,43.0],[5.5,43.0],[6.0,42.5],[6.0,42.5],[6.25,42.25],[6.5,42.0],[7.0,41.5],[7.25,41.25],[7.75,40.75],[8.5,40.0],[9.0,39.5],[10.0,38.75],[10.75,38.0],[11.75,37.0],[12.75,35.75],[14.25,34.25],[16.0,32.5],[18.75,29.75],[0,0],[0,0]],"cat3":[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[5.5,43.75],[5.5,43.75],[5.5,43.75],[5.5,43.75],[5.5,43.75],[5.5,43.75],[5.5,43.75],[5.5,43.75],[5.5,43.75],[5.0,44.0],[4.25,44.75],[3.5,45.25],[3.0,45.75],[2.75,46.0],[2.5,46.5],[2.0,46.75],[2.0,47.0],[1.5,47.25],[1.5,47.25],[1.5,47.25],[1.5,47.25],[1.5,47.25],[1.5,47.25],[1.5,47.25],[2.0,46.75],[2.0,46.75],[2.25,46.5],[2.75,46.0],[3.0,45.75],[3.75,45.0],[4.25,44.5],[5.0,43.75],[5.75,43.0],[6.75,42.0],[7.75,40.75],[9.25,39.5],[10.75,38.0],[12.75,35.75],[16.0,32.75],[20.25,28.5],[0,0],[0,0],[0,0]]};
-/* 顔（耳を除く）の輪郭を実測して得た基準点。49x53 換算 */
-const ANCHOR={
-  cat1:{cx:24.5, top:8, bot:50, w:31.5},
-  cat2:{cx:24.5, top:8, bot:50, w:37.5},
-  cat3:{cx:24.5, top:10, bot:49, w:45.75},
-};
-const BODY=[
-  {n:'cat1', lb:'ほそおもて', d: 0.08},
-  {n:'cat2', lb:'ふつう',     d:-0.08},
-  {n:'cat3', lb:'まるがお',   d:-99},
-];  /* 素材の実測比は 1.34 / 1.11 / 0.85。
-       4枚目5枚目は3枚目と同一（0.84/0.84）だったので採用していない */
-/* 基準値：実顔1人の実測（暫定）。測定モードで人数を集めて置き換える */
+/* ============================================================
+   へのへのもへじ描画
+   画像素材は使わない。文字の位置・大きさ・つぶれ具合が、そのまま実測値。
+     へ へ … 眉（測定していないので、目の位置から一定の距離に置く装飾）
+     の の … 目（位置は目の中心、大きさは目の幅、縦つぶれは目の縦）
+     も     … 鼻（位置は鼻の高さ）
+     へ     … 口（位置は口の高さ、大きさは口の幅）
+     じ     … 顔の輪郭（横につぶす／縦に伸ばすことで顔の縦横比を表す）
+   ============================================================ */
+let K=2.0;                        // 誇張率
+/* 手書きに近い字形を優先し、無い端末では教科書体→丸ゴ→明朝と落とす。
+   Klee One は「じのへも」の4文字だけを部分配信で読み込んでいる（数KB）。
+   通信できない場合も、下の候補で表示は成立する。 */
+const FONT='"Klee One","UD デジタル教科書体 NP-R","Yu Kyokasho","YuKyokasho",'
+  +'"Hiragino Maru Gothic ProN","ヒラギノ丸ゴ ProN W4","Yu Mincho","Hiragino Mincho ProN",'
+  +'"Noto Serif JP",serif';
+const FONT_W=400;                 // 線の太さ。細くしたいときはここを下げる
 let REF={inner:0.420, eyeW:0.290, eyeH:0.068, noseY:0.466,
          mouthY:0.887, mouthW:0.505, mouthH:0.030, aspect:1.284};
-let K=2.0, SZ=0.65, HI=0.42;      // 3種すべてで自動縮小が働かないことを実測で確認
-const SZ_CAP=0.72;                // 顔の大きさの上限
-const MOUTH_PULL=0.55;            // 口を鼻に寄せる割合。猫の顔では人の比率のままだと顎に来る（見た目用）
-const EYE_H_GAIN=3.0;             // 目の縦の見た目用倍率（猫は目が大きい方が似る。測定値ではない）
-const imgs={};
-for(const k in SPR){ const im=new Image(); im.src='data:image/png;base64,'+SPR[k]; imgs[k]=im; }
 const exag=(v,r)=>r+K*(v-r);
 
 /* 保存済みベクトルから測定値を復元する（撮影時のライブ計算と同じ式） */
@@ -253,69 +250,67 @@ function measureFromVec(v,map){
     smile:mY-((g(61).y+g(291).y)/2),
     aspect:(g(152).y-g(10).y)/Math.abs(g(454).x-g(234).x) };
 }
-function pickBody(aspect){
-  const a=exag(aspect,REF.aspect);
-  for(const b of BODY) if(a-REF.aspect>=b.d) return {...b,a};
-  return {...BODY[BODY.length-1],a};
-}
-/* 猫の輪郭の上に顔を描く。素体が滑らかな線画になったので、
-   ドット風の粗い拡大はやめ、表示解像度でそのまま描く。 */
-function drawCatFace(cvs,m){
-  const b=pickBody(m.aspect), A=ANCHOR[b.n], P=PROFILE[b.n];
-  const cxp=A.cx, cyp=A.top+HI*(A.bot-A.top);
-  const inner=exag(m.inner,REF.inner), eW=exag(m.eyeW,REF.eyeW), eH=exag(m.eyeH,REF.eyeH);
-  const nY=exag(m.noseY,REF.noseY);
-  const mYraw=exag(m.mouthY,REF.mouthY);
-  const mY=nY+(mYraw-nY)*MOUTH_PULL;   // 個人差は保ったまま、鼻との距離だけ詰める
-  const mW=exag(m.mouthW,REF.mouthW), mH=exag(m.mouthH,REF.mouthH);
-  const ecx=inner/2+eW/2;
-  const ehD=Math.max(0.07,Math.min(0.34,eH*EYE_H_GAIN));
-  const MARGIN=0.85;
-  const key=U=>[[cxp-(ecx+eW/2)*U,cyp],[cxp+(ecx+eW/2)*U,cyp],
-    [cxp-mW/2*U,cyp+mY*U],[cxp+mW/2*U,cyp+mY*U],
-    [cxp,cyp+(mY+0.06)*U],[cxp,cyp-0.42*U]];
-  const inside=(x,y)=>{ const r=Math.round(y); if(r<0||r>=P.length) return false;
-    const [l,rt]=P[r]; if(rt<=0) return false;
-    const c=(l+rt)/2, half=(rt-l)/2*MARGIN; return Math.abs(x-c)<=half; };
-  /* 顔の大きさの基準は幅と高さの小さい方。幅だけを見ると、
-     横に広い輪郭（丸顔）で顔が膨張して顎からはみ出しかける */
-  const BASE=Math.min(A.w,(A.bot-A.top)*0.95);
-  let U=Math.min(SZ,SZ_CAP)*BASE, t=0;
-  while(t++<60 && !key(U).every(([x,y])=>inside(x,y))) U*=0.96;
 
+/* 1文字を、中心座標・基準サイズ・縦横のつぶし率を指定して描く */
+function glyph(g,ch,x,y,size,sx,sy){
+  g.save(); g.translate(x,y); g.scale(sx,sy);
+  g.font=FONT_W+' '+Math.round(size)+'px '+FONT;
+  g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(ch,0,0);
+  g.restore();
+}
+
+function drawFace(cvs,m){
   const g=cvs.getContext('2d'), W=cvs.width, H=cvs.height;
   g.clearRect(0,0,W,H);
-  g.imageSmoothingEnabled=true;
-  const im=imgs[b.n];
-  if(im.complete) g.drawImage(im,0,0,W,H);
+  const inner=exag(m.inner,REF.inner), eW=exag(m.eyeW,REF.eyeW), eH=exag(m.eyeH,REF.eyeH);
+  const nY=exag(m.noseY,REF.noseY), mY=exag(m.mouthY,REF.mouthY);
+  const mW=exag(m.mouthW,REF.mouthW), asp=exag(m.aspect,REF.aspect);
+  const ecx=inner/2+eW/2;                        // 目の中心の左右位置
 
-  g.save();
-  g.scale(W/49,H/53);                 // 座標は 49x53 のまま、描画は表示解像度で
-  const X=v=>cxp+v*U, Y=v=>cyp+v*U;
-  const el=(x,y,a,b2)=>{ g.beginPath(); g.ellipse(x,y,Math.max(.2,a),Math.max(.2,b2),0,0,6.284); g.fill(); };
-  // 目
-  for(const s2 of [-1,1]){
-    const x=X(s2*ecx), y=Y(0);
-    g.fillStyle='#fffdf8'; el(x,y,U*eW/2*1.15,U*ehD/2);
-    g.fillStyle='#2f2b28'; el(x,y+U*ehD*0.05,U*eW*0.33,U*ehD*0.42);
-    g.fillStyle='#fff';    el(x-U*eW*0.10,y-U*ehD*0.16,U*0.022,U*0.022);
-  }
-  // 鼻
-  g.fillStyle='#e58fa0'; el(X(0),Y(nY),U*0.055,U*0.040);
-  // 口（角のないゆるやかなω。幅と口角は実データ）
-  g.strokeStyle='#2f2b28'; g.lineWidth=Math.max(0.35,U*0.055); g.lineCap='round'; g.lineJoin='round';
-  if(mH>0.09){
-    g.fillStyle='#7a4a52'; el(X(0),Y(mY),U*mW/2*0.55,U*mH/2*1.4);
-  }else{
-    const dip=Math.max(0.03, m.smile*K*1.2+0.06), hump=dip*0.55, w2=mW/2, y0=mY;
-    g.beginPath();
-    g.moveTo(X(-w2), Y(y0-0.01));
-    g.bezierCurveTo(X(-w2*0.55),Y(y0+dip), X(-w2*0.18),Y(y0+dip*0.30), X(0),Y(y0-hump));
-    g.bezierCurveTo(X( w2*0.18),Y(y0+dip*0.30), X( w2*0.55),Y(y0+dip), X( w2),Y(y0-0.01));
-    g.stroke();
-  }
-  g.restore();
-  return b;
+  /* 寸法は、4パターンの顔で並べて見ながら決めた値。
+     fx は「じ」の縦棒を避けて、顔のパーツを内側に寄せるためのずらし量 */
+  const U=W*0.24, JX=3.4, JY=0.40, FX=0.12;
+  const cx=W/2, cy=H*0.40;
+  const X=v=>cx+(v+FX)*U, Y=v=>cy+v*U;
+
+  g.fillStyle='#e6ebf2';
+  // じ＝輪郭。顔の縦横比をそのまま縦横のつぶし率にする
+  const r=asp/REF.aspect;
+  glyph(g,'じ',cx,cy+U*JY,U*JX,1/Math.sqrt(r),Math.sqrt(r));
+  // の＝目。大きさは目の幅、縦のつぶれは目の縦
+  const eSize=U*eW*2.0;
+  const eSq=Math.max(0.45,Math.min(1.25,(eH/REF.eyeH)*0.9));
+  for(const s of [-1,1]) glyph(g,'の',X(s*ecx),Y(0),eSize,1,eSq);
+  // へ＝眉（測定していない装飾）
+  for(const s of [-1,1]) glyph(g,'へ',X(s*ecx),Y(-0.36),eSize*0.85,1,0.75);
+  // も＝鼻
+  glyph(g,'も',X(0.03),Y(nY),U*0.50,1,1);
+  // へ＝口。大きさは口の幅
+  glyph(g,'へ',X(0),Y(mY),U*mW*1.85,1,1);
+}
+
+/* ============================================================
+   北海道米マップ
+   横軸 = 顔の縦横比（左が丸顔、右が面長）
+   縦軸 = 遠心度（上が遠心＝パーツが外に広がる、下が求心＝中央に寄る）
+       遠心度 = (目頭の間隔・目の幅・口の幅の、それぞれ基準値からのズレ率)の平均
+   銘柄の座標は食味の一般的な評され方から置いた**主観**であり、測定ではない。
+   ============================================================ */
+const RICE=[
+  {nm:'ゆめぴりか',  x:-0.10, y:-0.10, t:'粘りが強く濃厚'},
+  {nm:'ふっくりんこ',x:-0.06, y: 0.07, t:'やわらかく上品'},
+  {nm:'ななつぼし',  x: 0.00, y: 0.00, t:'バランス型'},
+  {nm:'おぼろづき',  x:-0.02, y:-0.09, t:'粘りが強い'},
+  {nm:'きらら397',   x: 0.11, y: 0.06, t:'あっさり、粒がしっかり'},
+];
+/* 地図の座標に変換する。x は縦横比の基準からの差、y は遠心度 */
+function toMap(m){
+  const rel=(v,r)=>(v-r)/r;
+  return {
+    x: m.aspect-REF.aspect,
+    y: (rel(m.inner,REF.inner)+rel(m.eyeW,REF.eyeW)+rel(m.mouthW,REF.mouthW))/3,
+  };
 }
 
 /* ============================================================
@@ -401,7 +396,7 @@ function dist(v1,v2,ids,map){
 
 /* ---------------- 画面：一覧 ---------------- */
 function paintFace(cvs,p){
-  try{ drawCatFace(cvs, measureFromVec(p.v,p.map)); }
+  try{ drawFace(cvs, measureFromVec(p.v,p.map)); }
   catch(e){ /* 古い構成のデータなど。描けなければ空のまま */ }
 }
 function renderGrid(){
@@ -411,7 +406,7 @@ function renderGrid(){
     const el=document.createElement('div');
     el.className='slot'+(p?' done':'');
     if(p){
-      el.innerHTML='<canvas width="98" height="105" style="width:68px;height:73px"></canvas>'
+      el.innerHTML='<canvas width="110" height="110" style="width:72px;height:72px"></canvas>'
         +'<div class="nm">'+f.emo+' '+f.nm+'</div>'
         +(p.dself!=null?'<div class="st">ブレ測定ずみ</div>':'');
       setTimeout(()=>paintFace(el.querySelector('canvas'), p),0);
@@ -434,8 +429,8 @@ function renderGrid(){
    ============================================================ */
 let measuring=false, lastM=null, samples=[];
 const mCam=$('mCam'), mcx=mCam.getContext('2d');
-for(const [id,set] of [['mK',v=>K=v],['mSZ',v=>SZ=v],['mHI',v=>HI=v]]){
-  const el=$(id); el.value = id==='mK'?K:(id==='mSZ'?SZ:HI);
+for(const [id,set] of [['mK',v=>K=v]]){
+  const el=$(id); el.value=K;
   $(id+'o').textContent=el.value;
   el.addEventListener('input',e=>{ set(+e.target.value); $(id+'o').textContent=e.target.value; });
 }
@@ -466,12 +461,12 @@ function measureTick(lm,W,H){
   for(const idx of MUST){ map[idx]=i++; v.push(n[idx]); }
   const m=measureFromVec(v,map);
   lastM=m;
-  const b=drawCatFace($('mRice'),m);
+  drawFace($('mRice'),m);
   let h='<tr><td>項目</td><td>実測</td><td>基準</td></tr>';
   for(const k in MLB){ const d=Math.abs(m[k]-REF[k])/REF[k];
     h+='<tr><td>'+MLB[k]+'</td><td class="'+(d>0.15?'hit':'')+'">'+m[k].toFixed(3)+'</td><td>'+REF[k].toFixed(3)+'</td></tr>'; }
   $('mTbl').innerHTML=h;
-  $('mPick').textContent='体型: '+b.lb+'（誇張後 '+b.a.toFixed(2)+' / 実測 '+m.aspect.toFixed(2)+'）';
+  $('mPick').textContent='顔の縦横比 '+m.aspect.toFixed(2)+'（基準 '+REF.aspect.toFixed(2)+'）';
 }
 
 /* 撮影済みの枠をタップしたときの選択 */
@@ -767,7 +762,13 @@ function stepReveal(){
 }
 function finishReveal(){
   const {ppl,pairs,parts,sc,far,rng,noise,measured}=R;
-  let h='<div class="res"><h2>部位別のいちばん</h2><div class="parts">';
+  let h='<div class="res"><h2>北海道米マップ</h2>'
+    +'<canvas id="map" width="640" height="640" style="width:100%;height:auto;'
+    +'background:#241f2b;border-radius:10px"></canvas>'
+    +'<div id="mapList"></div>'
+    +'<p class="note">横は丸顔⇔面長、縦は求心⇔遠心。銘柄の位置は食味の一般的な言われ方から置いた'
+    +'主観で、測定ではありません。原点は基準値なので、基準値を変えると全員の位置が動きます。</p></div>';
+  h+='<div class="res"><h2>部位別のいちばん</h2><div class="parts">';
   for(const k in parts){
     const best=[...pairs].sort((x,y)=>x.pd[k]-y.pd[k])[0];
     h+='<div class="part"><b>'+k+'</b><span>'+best.a.emo+' × '+best.b.emo+'</span></div>';
@@ -793,6 +794,52 @@ function finishReveal(){
     +'骨格の配置だけを見ており、血縁とは関係ありません。</p>';
   $('out').insertAdjacentHTML('beforeend',h);
   $('next').remove();
+  drawMap(ppl);
+}
+
+/* 地図：全員と銘柄を同じ平面に置く。近い銘柄を判定して一覧に出す */
+function drawMap(ppl){
+  const cvs=$('map'); if(!cvs) return;
+  const g=cvs.getContext('2d'), W=cvs.width, H=cvs.height, PAD=54;
+  const pts=ppl.map(f=>({f, ...toMap(measureFromVec(DB.people[f.id].v, DB.people[f.id].map))}));
+  // 表示範囲は全員と全銘柄が入るように取り、極端に狭いときは最小幅を確保
+  const xs=[...pts.map(p=>p.x),...RICE.map(r=>r.x)], ys=[...pts.map(p=>p.y),...RICE.map(r=>r.y)];
+  const span=(a,min)=>{ const lo=Math.min(...a), hi=Math.max(...a), c=(lo+hi)/2;
+    const half=Math.max((hi-lo)/2*1.35, min); return [c-half,c+half]; };
+  const [x0,x1]=span(xs,0.12), [y0,y1]=span(ys,0.12);
+  const PX=v=>PAD+(v-x0)/(x1-x0)*(W-PAD*2);
+  const PY=v=>H-PAD-(v-y0)/(y1-y0)*(H-PAD*2);
+
+  g.clearRect(0,0,W,H);
+  g.strokeStyle='#3a3244'; g.lineWidth=2;
+  g.beginPath(); g.moveTo(PX(0),PAD*0.6); g.lineTo(PX(0),H-PAD*0.6);
+  g.moveTo(PAD*0.6,PY(0)); g.lineTo(W-PAD*0.6,PY(0)); g.stroke();
+  g.fillStyle='#8c98a8'; g.font='20px system-ui, sans-serif';
+  g.textAlign='center'; g.fillText('遠心',PX(0),PAD*0.5);
+  g.fillText('求心',PX(0),H-PAD*0.2);
+  g.textAlign='left';  g.fillText('丸顔',6,PY(0)-10);
+  g.textAlign='right'; g.fillText('面長',W-6,PY(0)-10);
+
+  // 銘柄
+  g.font='19px system-ui, sans-serif'; g.textAlign='center';
+  for(const r of RICE){
+    const x=PX(r.x), y=PY(r.y);
+    g.fillStyle='#e8c07a'; g.beginPath(); g.arc(x,y,7,0,6.284); g.fill();
+    g.fillStyle='#c9ab7c'; g.fillText(r.nm,x,y-13);
+  }
+  // 参加者
+  g.font='bold 22px system-ui, sans-serif';
+  let li='';
+  for(const p of pts){
+    const x=PX(p.x), y=PY(p.y);
+    g.fillStyle='#ff9ec4'; g.beginPath(); g.arc(x,y,11,0,6.284); g.fill();
+    g.fillStyle='#1b212a'; g.font='16px system-ui, sans-serif'; g.fillText(p.f.emo,x,y+6);
+    let best=null, bd=1e9;
+    for(const r of RICE){ const d=Math.hypot((p.x-r.x)/(x1-x0),(p.y-r.y)/(y1-y0));
+      if(d<bd){ bd=d; best=r; } }
+    li+='<div class="pair"><span>'+p.f.emo+p.f.nm+'</span><span class="sc">'+best.nm+'</span></div>';
+  }
+  $('mapList').innerHTML=li;
 }
 
 $('wipe').onclick=()=>{
@@ -809,6 +856,11 @@ try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }cat
 function toTop(){ try{ window.scrollTo(0,0); }catch(e){} }
 toTop();
 addEventListener('load', ()=>{ toTop(); requestAnimationFrame(toTop); });
+
+/* Webフォントは後から届くので、読み込み完了後に描き直す */
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(()=>{ try{ renderGrid(); }catch(e){} });
+}
 
 renderGrid();
 setInterval(()=>{ const b=Object.keys(DB.people).length; DB=load(); if(Object.keys(DB.people).length!==b) renderGrid(); }, 60000);
