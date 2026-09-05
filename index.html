@@ -3,11 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>骨格そっくりさん判定</title>
+<title>北海道米くらべ（仮）</title>
 <style>
   :root{
-    --bg:#141118; --card:#1e1a24; --line:#332c3d; --fg:#f0eaf5; --dim:#9b8fa8;
-    --accent:#ffb3c7;
+    /* 水田の配色。苗の緑、水面、泥の土色 */
+    --bg:#0f1a14;        /* 夜明け前の水面 */
+    --card:#16261d;      /* 畦 */
+    --line:#2a4033;
+    --fg:#eaf3ec;
+    --dim:#89a394;
+    --accent:#9ed36a;    /* 若い苗 */
+    --water:#3f7f9c;     /* 張った水 */
   }
   *{box-sizing:border-box}
   html,body{margin:0}
@@ -29,12 +35,12 @@
   .slot.done{border-color:var(--accent)}
   button{font:inherit;cursor:pointer}
   .btn{width:100%;padding:14px;border-radius:12px;border:0;font-weight:700;font-size:.95rem;
-    background:var(--accent);color:#2a1420;margin-top:12px}
+    background:var(--accent);color:#0f1a14;margin-top:12px}
   .btn[disabled]{opacity:.35}
   .btn.sub{background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:500;font-size:.8rem;padding:11px}
 
   /* 撮影画面 */
-  #shoot{position:fixed;inset:0;background:#0b090e;display:none;flex-direction:column;z-index:20}
+  #shoot{position:fixed;inset:0;background:#0a140f;display:none;flex-direction:column;z-index:20}
   #shoot.on{display:flex}
   #shoot .top{padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
   #shoot .who{font-size:1rem;font-weight:700}
@@ -56,8 +62,8 @@
   #bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .12s}
   #sub{font-size:.7rem;color:var(--dim);margin-top:8px;line-height:1.6}
   #shutter{margin:12px auto 0;display:block;width:76px;height:76px;border-radius:50%;
-    border:4px solid #4a4155;background:var(--accent);color:#2a1420;font-size:.85rem;font-weight:800}
-  #shutter:disabled{background:#3a3344;color:#6d6478;border-color:#332c3d}
+    border:4px solid #4a4155;background:var(--accent);color:#0f1a14;font-size:.85rem;font-weight:800}
+  #shutter:disabled{background:#3a3344;color:#6d6478;border-color:#2a4033}
 
   /* 結果 */
   .res{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}
@@ -67,11 +73,11 @@
   .pair .rk{font-size:.7rem;color:var(--dim);width:2.1em}
   .pair .sc{margin-left:auto;font-weight:700;font-size:1rem}
   .parts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .part{background:#241f2b;border-radius:10px;padding:8px 10px}
+  .part{background:#12241b;border-radius:10px;padding:8px 10px}
   .part b{display:block;font-size:.68rem;color:var(--dim);font-weight:600}
   .part span{font-size:.88rem}
   .note{font-size:.68rem;color:var(--dim);line-height:1.7;margin-top:10px}
-  #meas{position:fixed;inset:0;background:#0f0d12;display:none;z-index:40;overflow:auto}
+  #meas{position:fixed;inset:0;background:#0c1712;display:none;z-index:40;overflow:auto}
   #meas.on{display:block}
   .mbox{padding:12px 12px calc(20px + env(safe-area-inset-bottom))}
   .mtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -79,7 +85,7 @@
     border-radius:10px;padding:8px 14px;font-size:.8rem}
   .mrow{display:flex;gap:8px;align-items:flex-start}
   #mCam{flex:1;min-width:0;width:100%;height:auto;border-radius:8px;background:#000}
-  #mRice{width:42%;max-width:180px;height:auto;background:#241f2b;border-radius:8px}
+  #mRice{width:42%;max-width:180px;height:auto;background:#12241b;border-radius:8px}
   .mctl label{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--dim);margin:6px 0}
   .mctl input{flex:1;accent-color:var(--accent)}
   .mctl output{min-width:2.6em;text-align:right;color:var(--accent);font-size:.74rem}
@@ -88,7 +94,7 @@
   #mTbl td:nth-child(2),#mTbl td:nth-child(3){text-align:right;color:var(--fg);font-variant-numeric:tabular-nums}
   #mTbl td.hit{color:var(--accent);font-weight:700}
   #mOut{white-space:pre-wrap;word-break:break-all;margin-top:8px}
-  #sheet{position:fixed;inset:0;background:rgba(10,8,13,.72);display:none;z-index:30;
+  #sheet{position:fixed;inset:0;background:rgba(8,18,13,.75);display:none;z-index:30;
     align-items:flex-end;justify-content:center}
   #sheet.on{display:flex}
   .sheetbox{background:var(--card);border:1px solid var(--line);border-radius:18px 18px 0 0;
@@ -108,30 +114,30 @@
 </head>
 <body>
 <header>
-  <h1>骨格そっくりさん判定</h1>
-  <p>髪型もヒゲも見ません。目・鼻・口・輪郭の配置だけで、誰と誰が近いかを出します。写真は保存しません。<span id="ver"></span></p>
+  <h1>北海道米くらべ <span id="ver"></span></h1>
+  <p>六枚の田んぼで米を育て、味くらべをします。顔の点の配置から米の性格を見立てる遊びで、味を測ってはいません。写真は保存しません。</p>
 </header>
 
 <div class="wrap">
   <div class="grid" id="grid"></div>
-  <button class="btn" id="go" disabled>結果を見る</button>
+  <button class="btn" id="go" disabled>味くらべをする</button>
   <div id="out"></div>
-  <button class="btn sub" id="wipe">ぜんぶ消す</button>
+  <button class="btn sub" id="wipe">田んぼをすべて休ませる</button>
   <p class="note" id="ttl"></p>
-  <button class="btn sub" id="openMeas">測定モード（おむすびの調整）</button>
+  <button class="btn sub" id="openMeas">土壌検査（点の表示を調整）</button>
   <details><summary>診断情報</summary><pre id="diag">未起動</pre></details>
 </div>
 
 <div id="sheet"><div class="sheetbox">
   <h3 id="shTitle"></h3>
   <p id="shSub"></p>
-  <button class="btn" id="shRetake">撮りなおす</button>
-  <button class="btn sub" id="shJit">ブレを測る（もう一度撮る）</button>
+  <button class="btn" id="shRetake">植えなおす</button>
+  <button class="btn sub" id="shJit">作柄を確かめる（もう一度植える）</button>
   <button class="btn sub" id="shCancel">とじる</button>
 </div></div>
 
 <div id="meas"><div class="mbox">
-  <div class="mtop"><b>測定モード</b><button id="mClose">とじる</button></div>
+  <div class="mtop"><b>土壌検査（測定モード）</b><button id="mClose">とじる</button></div>
   <div class="mrow"><canvas id="mCam"></canvas><canvas id="mRice" width="260" height="260"></canvas></div>
   <div class="mctl">
     <label>誇張率 <input type="range" id="mK" min="1" max="4" step="0.1"><output id="mKo"></output></label>
@@ -161,7 +167,7 @@
 /* ============================================================
    ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
-const VER='v21';
+const VER='v22';
 document.getElementById('ver').textContent=' ('+VER+')';
 
 /* どこで止まったかを常に追跡する。例外も全部拾って表示する */
@@ -203,15 +209,17 @@ const LIPS=[0,13,14,17,37,39,40,61,78,80,81,82,84,87,88,91,95,146,178,181,185,19
 const OVAL=[10,21,54,58,67,93,103,109,127,132,136,148,149,150,152,162,172,176,234,251,284,288,297,
             323,332,338,356,361,365,377,378,379,389,397,400,454];
 
-/* 丸い形のフルーツで統一。輪郭の点の色に使うので、色は互いに離す */
+
+/* 田んぼ。北海道の米の産地から。絵文字は使わず、番号と地名で表す */
 const FRUITS=[
-  {id:'ringo',   emo:'🍎', nm:'りんご',     col:'#ff6b6b'},
-  {id:'mikan',   emo:'🍊', nm:'みかん',     col:'#ffa94d'},
-  {id:'momo',    emo:'🍑', nm:'もも',       col:'#ff9ec4'},
-  {id:'meron',   emo:'🍈', nm:'めろん',     col:'#d7e07a'},
-  {id:'buruberi',emo:'🫐', nm:'ぶるーべり', col:'#8f8cff'},
-  {id:'aoringo', emo:'🍏', nm:'あおりんご', col:'#4fd18b'},
+  {id:'fukagawa', no:'一', nm:'深川',   col:'#8fd18b'},
+  {id:'moseushi', no:'二', nm:'妹背牛', col:'#7ec8a9'},
+  {id:'shinshinotsu', no:'三', nm:'新篠津', col:'#6fbfc4'},
+  {id:'rankoshi', no:'四', nm:'蘭越',   col:'#9dd06e'},
+  {id:'nayoro',   no:'五', nm:'名寄',   col:'#c3d06e'},
+  {id:'higashikawa', no:'六', nm:'東川', col:'#6db3d1'},
 ];
+const LB_OF=f=>f.no+'番田・'+f.nm;
 
 /* ============================================================
    おむすび描画（調整台 t2 から移植）
@@ -395,20 +403,20 @@ function renderGrid(){
     el.className='slot'+(p?' done':'');
     if(p){
       el.innerHTML='<canvas width="200" height="200" style="width:84px;height:84px"></canvas>'
-        +'<div class="nm">'+f.emo+' '+f.nm+'</div>'
-        +(p.dself!=null?'<div class="st">ブレ測定ずみ</div>':'');
+        +'<div class="nm">'+LB_OF(f)+'</div>'
+        +(p.dself!=null?'<div class="st">作柄ずみ</div>':'');
       setTimeout(()=>paintFace(el.querySelector('canvas'), p),0);
     }else{
-      el.innerHTML='<div class="emo">'+f.emo+'</div><div class="nm">'+f.nm+'</div><div class="st">タップして撮影</div>';
+      el.innerHTML='<div class="emo">'+f.no+'</div><div class="nm">'+f.nm+'</div><div class="st">タップして田植え</div>';
     }
     el.onclick=()=> DB.people[f.id] ? openSheet(f) : openShoot(f,'new');
     g.appendChild(el);
   }
   const n=Object.keys(DB.people).length;
   $('go').disabled = n<2;
-  $('go').textContent = n<2 ? 'あと'+(2-n)+'人ぶん撮ってください' : '結果を見る（'+n+'人）';
+  $('go').textContent = n<2 ? 'あと'+(2-n)+'枚ぶん田植えしてください' : '味くらべをする（'+n+'枚）';
   const ts=Object.values(DB.people).map(p=>p.t);
-  $('ttl').textContent = ts.length ? '最初のデータは約'+Math.max(0,Math.round((TTL-(Date.now()-Math.min(...ts)))/3600000))+'時間後に自動で消えます。' : '';
+  $('ttl').textContent = ts.length ? '最初に植えた田は約'+Math.max(0,Math.round((TTL-(Date.now()-Math.min(...ts)))/3600000))+'時間後に休ませます（データは自動で消えます）。' : '';
 }
 
 /* ============================================================
@@ -425,7 +433,7 @@ for(const [id,set,init] of [['mK',v=>K=v,()=>K],['mDOT',v=>DOT=v,()=>DOT]]){
 $('openMeas').onclick=async()=>{
   $('meas').classList.add('on');
   measuring=true;
-  await openShoot({id:'__meas__',emo:'',nm:'測定'},'measure');
+  await openShoot({id:'__meas__',no:'',nm:'測定'},'measure');
 };
 $('mClose').onclick=()=>{ measuring=false; $('meas').classList.remove('on'); closeShoot(); renderGrid(); };
 $('mAdd').onclick=()=>{
@@ -462,11 +470,11 @@ function measureTick(lm,W,H){
 let sheetFruit=null;
 function openSheet(f){
   sheetFruit=f;
-  $('shTitle').textContent=f.emo+' '+f.nm;
+  $('shTitle').textContent=LB_OF(f);
   const p=DB.people[f.id];
   $('shSub').textContent = p.dself!=null
-    ? 'ブレは測定ずみです（もう一度測ると上書きします）'
-    : '「ブレを測る」は同じ人をもう一度撮って、測定のばらつきを調べます。結果がどこまで信用できるかの目安になります。';
+    ? '作柄は確認ずみです（もう一度確かめると上書きします）'
+    : '「作柄を確かめる」は同じ人をもう一度植えて、測定のばらつきを調べます。味くらべの結果がどこまで信用できるかの目安になります。';
   $('sheet').classList.add('on');
 }
 $('shCancel').onclick=()=>$('sheet').classList.remove('on');
@@ -476,7 +484,7 @@ $('shJit').onclick  =()=>{ $('sheet').classList.remove('on'); openShoot(sheetFru
 /* ---------------- 撮影 ---------------- */
 async function openShoot(f, mode){
   target=f; shootMode=mode||'new';
-  $('who').textContent=f.emo+' '+f.nm+(shootMode==='jitter'?' の2回目':' をさつえい');
+  $('who').textContent=LB_OF(f)+(shootMode==='jitter'?'（作柄の確認）':' に田植え');
   $('shoot').classList.add('on'); $('msg').textContent='じゅんびちゅう…';
   buf=[]; phase='idle'; $('shutter').disabled=true; $('retry').style.display='none';
   cv.width=0; cv.height=0; cv.style.width=''; cv.style.height='';
@@ -684,10 +692,10 @@ function finish(){
     // 他人同士の差がこれを下回るなら、その差は読み取れていない。
     prev.dself = dist(prev.v, v, allIdx(DB.schema), prev.map);
     prev.t = Date.now();
-    msg('ブレを測りました','');
+    msg('作柄を確かめました','');
   }else{
     DB.people[target.id]={ v, jit, t:Date.now(), map };
-    msg('できました！','');
+    msg('田植えができました','');
   }
   store(DB);
   $('shutter').disabled=true; bar(1);
@@ -731,7 +739,7 @@ let R=null, revealIdx=-1;
 $('go').onclick=()=>{
   R=computeResults(); revealIdx=R.pairs.length-1;
   $('out').innerHTML='<div class="reveal"><div class="rank">総当たり '+R.pairs.length+'組</div>'
-    +'<div class="who2">下位から発表します</div></div>'
+    +'<div class="who2">遠い組から発表します</div></div>'
     +'<button class="btn" id="next">はじめる</button><div class="done-list" id="dl"></div>';
   $('next').onclick=stepReveal;
   $('out').scrollIntoView({behavior:'smooth',block:'start'});
@@ -742,46 +750,47 @@ function stepReveal(){
   const top = rank===1;
   document.querySelector('.reveal').innerHTML=
      '<div class="rank">'+(top?'★ 第1位 ★':'第'+rank+'位')+'</div>'
-    +'<div class="who2">'+p.a.emo+p.a.nm+' × '+p.b.emo+p.b.nm+'</div>'
+    +'<div class="who2">'+p.a.nm+' × '+p.b.nm+'</div>'
     +'<div class="big">'+R.sc(p.d)+'</div>';
   const dl=$('dl');
   dl.insertAdjacentHTML('afterbegin','<div class="pair"><span class="rk">'+rank+'位</span><span>'
-    +p.a.emo+' × '+p.b.emo+'</span><span class="sc">'+R.sc(p.d)+'</span></div>');
+    +p.a.nm+' × '+p.b.nm+'</span><span class="sc">'+R.sc(p.d)+'</span></div>');
   revealIdx--;
-  $('next').textContent = revealIdx<0 ? 'くわしい結果を見る' : (revealIdx===0 ? '1位を発表' : 'つぎ');
+  $('next').textContent = revealIdx<0 ? 'くわしい味くらべを見る' : (revealIdx===0 ? '1位を発表' : 'つぎ');
 }
 function finishReveal(){
   const {ppl,pairs,parts,sc,far,rng,noise,measured}=R;
   let h='<div class="res"><h2>北海道米マップ</h2>'
     +'<canvas id="map" width="640" height="640" style="width:100%;height:auto;'
-    +'background:#241f2b;border-radius:10px"></canvas>'
+    +'background:#12241b;border-radius:10px"></canvas>'
     +'<div id="mapList"></div>'
-    +'<p class="note">横は丸顔⇔面長、縦は求心⇔遠心。銘柄の位置は食味の一般的な言われ方から置いた'
+    +'<p class="note">横は粒のやわらかさ⇔しっかり感、縦はあっさり⇔濃厚。実際にはそれぞれ顔の縦横比と'
+    +'パーツの広がりを言い換えたものです。銘柄の位置は食味の一般的な言われ方から置いた'
     +'主観で、測定ではありません。原点は基準値なので、基準値を変えると全員の位置が動きます。</p></div>';
-  h+='<div class="res"><h2>部位別のいちばん</h2><div class="parts">';
+  h+='<div class="res"><h2>部位別に近い組</h2><div class="parts">';
   for(const k in parts){
     const best=[...pairs].sort((x,y)=>x.pd[k]-y.pd[k])[0];
-    h+='<div class="part"><b>'+k+'</b><span>'+best.a.emo+' × '+best.b.emo+'</span></div>';
+    h+='<div class="part"><b>'+k+'</b><span>'+best.a.nm+' × '+best.b.nm+'</span></div>';
   }
   h+='</div></div>';
-  h+='<div class="res"><h2>みんなの平均に…</h2>'
-    +'<div class="pair"><span>いちばん近い（ふつう顔）</span><span class="sc">'+far[0].f.emo+far[0].f.nm+'</span></div>'
-    +'<div class="pair"><span>いちばん遠い（こせい派）</span><span class="sc">'+far[far.length-1].f.emo+far[far.length-1].f.nm+'</span></div></div>';
+  h+='<div class="res"><h2>六枚の平均から見ると</h2>'
+    +'<div class="pair"><span>もっとも標準的な米</span><span class="sc">'+far[0].f.nm+'</span></div>'
+    +'<div class="pair"><span>もっとも個性的な米</span><span class="sc">'+far[far.length-1].f.nm+'</span></div></div>';
 
   // 測定のブレを点数に換算して、順位が読み取れているかを判定
   const noisePt = pairs.length<2 ? 0 : 40*noise/rng;
   const gap = pairs.length<2 ? 0 : sc(pairs[0].d)-sc(pairs[1].d);
-  h+='<div class="res"><h2>この結果はどこまで信用できるか</h2>'
-    +'<div class="pair"><span>測定のブレ'+(measured?'（実測 '+measured+'人）':'（推定値）')+'</span><span class="sc">約'+noisePt.toFixed(1)+'点</span></div>'
+  h+='<div class="res"><h2>この味くらべはどこまで信用できるか</h2>'
+    +'<div class="pair"><span>作柄のばらつき'+(measured?'（実測 '+measured+'枚）':'（推定値）')+'</span><span class="sc">約'+noisePt.toFixed(1)+'点</span></div>'
     +'<div class="pair"><span>1位と2位の点差</span><span class="sc">'+gap+'点</span></div>'
-    +'<p class="note">'+(pairs.length<2 ? 'ペアが1組しかないので順位はありません。3人以上で測ってください。'
+    +'<p class="note">'+(pairs.length<2 ? '組が1つしかないので順位はありません。三枚以上で試してください。'
       : gap<=noisePt
-      ? '<b>点差がブレより小さいので、この1位はほぼ偶然です。</b>順位は読み取れていません。'
-      : '点差がブレを上回っているので、1位は測定のブレでは説明できません。')
-    +(measured? '' : '<br>※ブレは推定値です。撮影済みの枠をタップして「ブレを測る」を実行すると実測値になります。')
+      ? '<b>点差が作柄のばらつきより小さいので、この1位はほぼ偶然です。</b>順位は読み取れていません。'
+      : '点差がばらつきを上回っているので、1位は測定のゆれでは説明できません。')
+    +(measured? '' : '<br>※ばらつきは推定値です。田植えずみの枠をタップして「作柄を確かめる」を実行すると実測値になります。')
     +'</p></div>';
-  h+='<p class="note">点数はこの'+ppl.length+'人の中での相対値です（100〜60）。別のメンバーで測ると数字は変わります。'
-    +'骨格の配置だけを見ており、血縁とは関係ありません。</p>';
+  h+='<p class="note">点数はこの'+ppl.length+'枚の中での相対値です（100〜60）。別の顔ぶれで測ると数字は変わります。'
+    +'顔の点の配置だけを見ており、実際の味とも血縁とも関係ありません。</p>';
   $('out').insertAdjacentHTML('beforeend',h);
   $('next').remove();
   drawMap(ppl);
@@ -801,39 +810,39 @@ function drawMap(ppl){
   const PY=v=>H-PAD-(v-y0)/(y1-y0)*(H-PAD*2);
 
   g.clearRect(0,0,W,H);
-  g.strokeStyle='#3a3244'; g.lineWidth=2;
+  g.strokeStyle='#2a4033'; g.lineWidth=2;
   g.beginPath(); g.moveTo(PX(0),PAD*0.6); g.lineTo(PX(0),H-PAD*0.6);
   g.moveTo(PAD*0.6,PY(0)); g.lineTo(W-PAD*0.6,PY(0)); g.stroke();
-  g.fillStyle='#8c98a8'; g.font='20px system-ui, sans-serif';
-  g.textAlign='center'; g.fillText('遠心',PX(0),PAD*0.5);
-  g.fillText('求心',PX(0),H-PAD*0.2);
-  g.textAlign='left';  g.fillText('丸顔',6,PY(0)-10);
-  g.textAlign='right'; g.fillText('面長',W-6,PY(0)-10);
+  g.fillStyle='#89a394'; g.font='20px system-ui, sans-serif';
+  g.textAlign='center'; g.fillText('濃厚',PX(0),PAD*0.5);
+  g.fillText('あっさり',PX(0),H-PAD*0.2);
+  g.textAlign='left';  g.fillText('やわらかい',6,PY(0)-10);
+  g.textAlign='right'; g.fillText('しっかり',W-6,PY(0)-10);
 
   // 銘柄
   g.font='19px system-ui, sans-serif'; g.textAlign='center';
   for(const r of RICE){
     const x=PX(r.x), y=PY(r.y);
-    g.fillStyle='#e8c07a'; g.beginPath(); g.arc(x,y,7,0,6.284); g.fill();
-    g.fillStyle='#c9ab7c'; g.fillText(r.nm,x,y-13);
+    g.fillStyle='#e3d27a'; g.beginPath(); g.arc(x,y,7,0,6.284); g.fill();
+    g.fillStyle='#b9c98a'; g.fillText(r.nm,x,y-13);
   }
-  // 参加者
+  // それぞれの田の米
   g.font='bold 22px system-ui, sans-serif';
   let li='';
   for(const p of pts){
     const x=PX(p.x), y=PY(p.y);
-    g.fillStyle='#ff9ec4'; g.beginPath(); g.arc(x,y,11,0,6.284); g.fill();
-    g.fillStyle='#1b212a'; g.font='16px system-ui, sans-serif'; g.fillText(p.f.emo,x,y+6);
+    g.fillStyle='#9ed36a'; g.beginPath(); g.arc(x,y,11,0,6.284); g.fill();
+    g.fillStyle='#10221a'; g.font='bold 17px system-ui, sans-serif'; g.fillText(p.f.no,x,y+6);
     let best=null, bd=1e9;
     for(const r of RICE){ const d=Math.hypot((p.x-r.x)/(x1-x0),(p.y-r.y)/(y1-y0));
       if(d<bd){ bd=d; best=r; } }
-    li+='<div class="pair"><span>'+p.f.emo+p.f.nm+'</span><span class="sc">'+best.nm+'</span></div>';
+    li+='<div class="pair"><span>'+LB_OF(p.f)+'</span><span class="sc">'+best.nm+'</span></div>';
   }
   $('mapList').innerHTML=li;
 }
 
 $('wipe').onclick=()=>{
-  if(!confirm('ぜんぶ消します。よろしいですか？')) return;
+  if(!confirm('六枚すべての田を休ませます（データは消えます）。よろしいですか？')) return;
   DB={schema:null,people:{}}; mem=null;
   try{ localStorage.removeItem(KEY); }catch(e){}
   $('out').innerHTML=''; renderGrid(); toTop();
