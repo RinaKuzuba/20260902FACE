@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>骨格そっくりさん判定</title>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet"
-  href="https://fonts.googleapis.com/css2?family=Klee+One&text=%E3%81%98%E3%81%AE%E3%81%B8%E3%82%82&display=swap">
 <style>
   :root{
     --bg:#141118; --card:#1e1a24; --line:#332c3d; --fg:#f0eaf5; --dim:#9b8fa8;
@@ -135,9 +132,10 @@
 
 <div id="meas"><div class="mbox">
   <div class="mtop"><b>測定モード</b><button id="mClose">とじる</button></div>
-  <div class="mrow"><canvas id="mCam"></canvas><canvas id="mRice" width="210" height="210"></canvas></div>
+  <div class="mrow"><canvas id="mCam"></canvas><canvas id="mRice" width="260" height="260"></canvas></div>
   <div class="mctl">
     <label>誇張率 <input type="range" id="mK" min="1" max="4" step="0.1"><output id="mKo"></output></label>
+    <label>点の大きさ <input type="range" id="mDOT" min="0.5" max="2.5" step="0.1"><output id="mDOTo"></output></label>
   </div>
   <table id="mTbl"></table>
   <div id="mPick" class="note"></div>
@@ -163,7 +161,7 @@
 /* ============================================================
    ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
-const VER='v19';
+const VER='v20';
 document.getElementById('ver').textContent=' ('+VER+')';
 
 /* どこで止まったかを常に追跡する。例外も全部拾って表示する */
@@ -219,25 +217,18 @@ const FRUITS=[
    おむすび描画（調整台 t2 から移植）
    ============================================================ */
 /* ============================================================
-   へのへのもへじ描画
-   画像素材は使わない。文字の位置・大きさ・つぶれ具合が、そのまま実測値。
-     へ へ … 眉（測定していないので、目の位置から一定の距離に置く装飾）
-     の の … 目（位置は目の中心、大きさは目の幅、縦つぶれは目の縦）
-     も     … 鼻（位置は鼻の高さ）
-     へ     … 口（位置は口の高さ、大きさは口の幅）
-     じ     … 顔の輪郭（横につぶす／縦に伸ばすことで顔の縦横比を表す）
+   ドットによる顔表現
+   保存している点（約85点）を、そのまま正規化座標で打つ。
+   誇張はかけない。位置関係がそのまま個人差になる。
    ============================================================ */
-let K=2.0;                        // 誇張率
-/* 手書きに近い字形を優先し、無い端末では教科書体→丸ゴ→明朝と落とす。
-   Klee One は「じのへも」の4文字だけを部分配信で読み込んでいる（数KB）。
-   通信できない場合も、下の候補で表示は成立する。 */
-const FONT='"Klee One","UD デジタル教科書体 NP-R","Yu Kyokasho","YuKyokasho",'
-  +'"Hiragino Maru Gothic ProN","ヒラギノ丸ゴ ProN W4","Yu Mincho","Hiragino Mincho ProN",'
-  +'"Noto Serif JP",serif';
-const FONT_W=400;                 // 線の太さ。細くしたいときはここを下げる
+let K=2.0;                        // 地図側では使わないが、測定モードの表示に残す
+let DOT=1.0;                      // 点の大きさの倍率
 let REF={inner:0.420, eyeW:0.290, eyeH:0.068, noseY:0.466,
          mouthY:0.887, mouthW:0.505, mouthH:0.030, aspect:1.284};
 const exag=(v,r)=>r+K*(v-r);
+/* 部位ごとの色。鼻は幾何的に自動選択しているので、
+   黄色い点が鼻の位置に乗っていれば選択が正しいと目視で確認できる */
+const PART_COL=['#8ecbff','#ffd35e','#ff8fb0','#cfd6e0','#9be08a'];
 
 /* 保存済みベクトルから測定値を復元する（撮影時のライブ計算と同じ式） */
 function measureFromVec(v,map){
@@ -251,43 +242,30 @@ function measureFromVec(v,map){
     aspect:(g(152).y-g(10).y)/Math.abs(g(454).x-g(234).x) };
 }
 
-/* 1文字を、中心座標・基準サイズ・縦横のつぶし率を指定して描く */
-function glyph(g,ch,x,y,size,sx,sy){
-  g.save(); g.translate(x,y); g.scale(sx,sy);
-  g.font=FONT_W+' '+Math.round(size)+'px '+FONT;
-  g.textAlign='center'; g.textBaseline='middle';
-  g.fillText(ch,0,0);
-  g.restore();
-}
-
-function drawFace(cvs,m){
-  const g=cvs.getContext('2d'), W=cvs.width, H=cvs.height;
+/* 点群を、はみ出さないように収めて打つ。groups は部位の区切り位置 */
+function drawDots(cvs, pts, groups){
+  const g=cvs.getContext('2d'), W=cvs.width, H=cvs.height, PAD=W*0.10;
   g.clearRect(0,0,W,H);
-  const inner=exag(m.inner,REF.inner), eW=exag(m.eyeW,REF.eyeW), eH=exag(m.eyeH,REF.eyeH);
-  const nY=exag(m.noseY,REF.noseY), mY=exag(m.mouthY,REF.mouthY);
-  const mW=exag(m.mouthW,REF.mouthW), asp=exag(m.aspect,REF.aspect);
-  const ecx=inner/2+eW/2;                        // 目の中心の左右位置
-
-  /* 寸法は、4パターンの顔で並べて見ながら決めた値。
-     fx は「じ」の縦棒を避けて、顔のパーツを内側に寄せるためのずらし量 */
-  const U=W*0.24, JX=3.4, JY=0.40, FX=0.12;
-  const cx=W/2, cy=H*0.40;
-  const X=v=>cx+(v+FX)*U, Y=v=>cy+v*U;
-
-  g.fillStyle='#e6ebf2';
-  // じ＝輪郭。顔の縦横比をそのまま縦横のつぶし率にする
-  const r=asp/REF.aspect;
-  glyph(g,'じ',cx,cy+U*JY,U*JX,1/Math.sqrt(r),Math.sqrt(r));
-  // の＝目。大きさは目の幅、縦のつぶれは目の縦
-  const eSize=U*eW*2.0;
-  const eSq=Math.max(0.45,Math.min(1.25,(eH/REF.eyeH)*0.9));
-  for(const s of [-1,1]) glyph(g,'の',X(s*ecx),Y(0),eSize,1,eSq);
-  // へ＝眉（測定していない装飾）
-  for(const s of [-1,1]) glyph(g,'へ',X(s*ecx),Y(-0.36),eSize*0.85,1,0.75);
-  // も＝鼻
-  glyph(g,'も',X(0.03),Y(nY),U*0.50,1,1);
-  // へ＝口。大きさは口の幅
-  glyph(g,'へ',X(0),Y(mY),U*mW*1.85,1,1);
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  for(const p of pts){ if(p.x<x0)x0=p.x; if(p.x>x1)x1=p.x; if(p.y<y0)y0=p.y; if(p.y>y1)y1=p.y; }
+  const sc=Math.min((W-PAD*2)/(x1-x0||1),(H-PAD*2)/(y1-y0||1));
+  const ox=W/2-((x0+x1)/2)*sc, oy=H/2-((y0+y1)/2)*sc;
+  const r=Math.max(1.2, W/52*DOT);
+  let gi=0;
+  pts.forEach((p,i)=>{
+    while(gi<groups.length-1 && i>=groups[gi]) gi++;
+    g.fillStyle=PART_COL[Math.min(gi,PART_COL.length-1)];
+    g.beginPath(); g.arc(ox+p.x*sc, oy+p.y*sc, r, 0, 6.284); g.fill();
+  });
+}
+/* スキーマの並び順から、部位の区切り位置を作る */
+function groupEdges(sc){
+  const a=sc.eyes.length, b=a+sc.nose.length, c=b+sc.mouth.length, d=c+sc.oval.length;
+  return [a,b,c,d,d+(sc.key?sc.key.length:0)];
+}
+function drawFace(cvs,p){
+  if(!DB.schema) return;
+  drawDots(cvs, p.v, groupEdges(DB.schema));
 }
 
 /* ============================================================
@@ -396,7 +374,7 @@ function dist(v1,v2,ids,map){
 
 /* ---------------- 画面：一覧 ---------------- */
 function paintFace(cvs,p){
-  try{ drawFace(cvs, measureFromVec(p.v,p.map)); }
+  try{ drawFace(cvs, p); }
   catch(e){ /* 古い構成のデータなど。描けなければ空のまま */ }
 }
 function renderGrid(){
@@ -406,7 +384,7 @@ function renderGrid(){
     const el=document.createElement('div');
     el.className='slot'+(p?' done':'');
     if(p){
-      el.innerHTML='<canvas width="110" height="110" style="width:72px;height:72px"></canvas>'
+      el.innerHTML='<canvas width="200" height="200" style="width:84px;height:84px"></canvas>'
         +'<div class="nm">'+f.emo+' '+f.nm+'</div>'
         +(p.dself!=null?'<div class="st">ブレ測定ずみ</div>':'');
       setTimeout(()=>paintFace(el.querySelector('canvas'), p),0);
@@ -429,8 +407,8 @@ function renderGrid(){
    ============================================================ */
 let measuring=false, lastM=null, samples=[];
 const mCam=$('mCam'), mcx=mCam.getContext('2d');
-for(const [id,set] of [['mK',v=>K=v]]){
-  const el=$(id); el.value=K;
+for(const [id,set,init] of [['mK',v=>K=v,()=>K],['mDOT',v=>DOT=v,()=>DOT]]){
+  const el=$(id); el.value=init();
   $(id+'o').textContent=el.value;
   el.addEventListener('input',e=>{ set(+e.target.value); $(id+'o').textContent=e.target.value; });
 }
@@ -456,12 +434,13 @@ function measureTick(lm,W,H){
   for(const p of lm){ mcx.beginPath(); mcx.arc((1-p.x)*W,p.y*H,Math.max(1,W/500),0,6.284);
     mcx.fillStyle='rgba(255,179,199,.7)'; mcx.fill(); }
   const n=normalize(lm,W/H);
-  // ライブの点から測定値を作る（保存ベクトルからの復元と同じ式）
-  const map={}; const v=[]; let i=0;
-  for(const idx of MUST){ map[idx]=i++; v.push(n[idx]); }
+  // 保存されるのと同じ並びで点を作る。スキーマが未作成なら、その場で作る
+  const sc = DB.schema || buildSchema(n);
+  const ids=allIdx(sc); const map={}; const v=[];
+  ids.forEach((idx,k)=>{ map[idx]=k; v.push(n[idx]); });
   const m=measureFromVec(v,map);
   lastM=m;
-  drawFace($('mRice'),m);
+  drawDots($('mRice'), v, groupEdges(sc));
   let h='<tr><td>項目</td><td>実測</td><td>基準</td></tr>';
   for(const k in MLB){ const d=Math.abs(m[k]-REF[k])/REF[k];
     h+='<tr><td>'+MLB[k]+'</td><td class="'+(d>0.15?'hit':'')+'">'+m[k].toFixed(3)+'</td><td>'+REF[k].toFixed(3)+'</td></tr>'; }
