@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>北海道米くらべ（仮）</title>
+<title>たがやしくらべ 〜あなたの顔は、北海道の何米系？〜</title>
 <style>
   :root{
     /* 水田の配色。苗の緑、水面、泥の土色 */
@@ -23,12 +23,14 @@
   header{padding:12px 16px 6px}
   h1{margin:0;font-size:1.05rem;font-weight:700;letter-spacing:.03em}
   header p{margin:3px 0 0;font-size:.72rem;color:var(--dim);line-height:1.6}
+  header p.sub{margin:4px 0 6px;font-size:.86rem;color:var(--accent);font-weight:600;letter-spacing:.02em}
   .wrap{padding:0 12px 24px}
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
   .slot{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 6px;
     text-align:center;cursor:pointer;min-height:118px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:4px}
-  .slot .emo{font-size:1.7rem;line-height:1}
+  .slot .no{font-size:.66rem;color:var(--dim);line-height:1.2;letter-spacing:.04em}
+  .slot .city{font-size:1.15rem;font-weight:700;line-height:1.2}
   .slot .nm{font-size:.76rem;font-weight:600}
   .slot .st{font-size:.62rem;color:var(--dim)}
   .slot canvas{background:#0e0c11;border-radius:8px}
@@ -114,13 +116,14 @@
 </head>
 <body>
 <header>
-  <h1>北海道米くらべ <span id="ver"></span></h1>
-  <p>六枚の田んぼで米を育て、味くらべをします。顔の点の配置から米の性格を見立てる遊びで、味を測ってはいません。写真は保存しません。</p>
+  <h1>たがやしくらべ <span id="ver"></span></h1>
+  <p class="sub">あなたの顔は、北海道の何米系？</p>
+  <p>六枚の田んぼに顔を植えて、育った米を北海道米にたとえます。顔の点の配置から米の性格を見立てる遊びで、味は測っていません。写真は保存しません。</p>
 </header>
 
 <div class="wrap">
   <div class="grid" id="grid"></div>
-  <button class="btn" id="go" disabled>味くらべをする</button>
+  <button class="btn" id="go" disabled>品評会をひらく</button>
   <div id="out"></div>
   <button class="btn sub" id="wipe">田んぼをすべて休ませる</button>
   <p class="note" id="ttl"></p>
@@ -167,7 +170,7 @@
 /* ============================================================
    ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
-const VER='v22';
+const VER='v25';
 document.getElementById('ver').textContent=' ('+VER+')';
 
 /* どこで止まったかを常に追跡する。例外も全部拾って表示する */
@@ -407,14 +410,16 @@ function renderGrid(){
         +(p.dself!=null?'<div class="st">作柄ずみ</div>':'');
       setTimeout(()=>paintFace(el.querySelector('canvas'), p),0);
     }else{
-      el.innerHTML='<div class="emo">'+f.no+'</div><div class="nm">'+f.nm+'</div><div class="st">タップして田植え</div>';
+      el.innerHTML='<div class="no">'+f.no+'番田</div>'
+        +'<div class="city">'+f.nm+'</div>'
+        +'<div class="st">タップして田植え</div>';
     }
     el.onclick=()=> DB.people[f.id] ? openSheet(f) : openShoot(f,'new');
     g.appendChild(el);
   }
   const n=Object.keys(DB.people).length;
   $('go').disabled = n<2;
-  $('go').textContent = n<2 ? 'あと'+(2-n)+'枚ぶん田植えしてください' : '味くらべをする（'+n+'枚）';
+  $('go').textContent = n<2 ? 'あと'+(2-n)+'枚ぶん田植えしてください' : '品評会をひらく（'+n+'枚）';
   const ts=Object.values(DB.people).map(p=>p.t);
   $('ttl').textContent = ts.length ? '最初に植えた田は約'+Math.max(0,Math.round((TTL-(Date.now()-Math.min(...ts)))/3600000))+'時間後に休ませます（データは自動で消えます）。' : '';
 }
@@ -474,7 +479,7 @@ function openSheet(f){
   const p=DB.people[f.id];
   $('shSub').textContent = p.dself!=null
     ? '作柄は確認ずみです（もう一度確かめると上書きします）'
-    : '「作柄を確かめる」は同じ人をもう一度植えて、測定のばらつきを調べます。味くらべの結果がどこまで信用できるかの目安になります。';
+    : '「作柄を確かめる」は同じ人をもう一度植えて、測定のばらつきを調べます。品評の結果がどこまで信用できるかの目安になります。';
   $('sheet').classList.add('on');
 }
 $('shCancel').onclick=()=>$('sheet').classList.remove('on');
@@ -756,13 +761,14 @@ function stepReveal(){
   dl.insertAdjacentHTML('afterbegin','<div class="pair"><span class="rk">'+rank+'位</span><span>'
     +p.a.nm+' × '+p.b.nm+'</span><span class="sc">'+R.sc(p.d)+'</span></div>');
   revealIdx--;
-  $('next').textContent = revealIdx<0 ? 'くわしい味くらべを見る' : (revealIdx===0 ? '1位を発表' : 'つぎ');
+  $('next').textContent = revealIdx<0 ? 'くわしい品評結果を見る' : (revealIdx===0 ? '1位を発表' : 'つぎ');
 }
 function finishReveal(){
   const {ppl,pairs,parts,sc,far,rng,noise,measured}=R;
   let h='<div class="res"><h2>北海道米マップ</h2>'
     +'<canvas id="map" width="640" height="640" style="width:100%;height:auto;'
     +'background:#12241b;border-radius:10px"></canvas>'
+    +'<div class="note" style="margin:6px 0 2px">□ 銘柄（見本）　● あなたの田</div>'
     +'<div id="mapList"></div>'
     +'<p class="note">横は粒のやわらかさ⇔しっかり感、縦はあっさり⇔濃厚。実際にはそれぞれ顔の縦横比と'
     +'パーツの広がりを言い換えたものです。銘柄の位置は食味の一般的な言われ方から置いた'
@@ -780,7 +786,7 @@ function finishReveal(){
   // 測定のブレを点数に換算して、順位が読み取れているかを判定
   const noisePt = pairs.length<2 ? 0 : 40*noise/rng;
   const gap = pairs.length<2 ? 0 : sc(pairs[0].d)-sc(pairs[1].d);
-  h+='<div class="res"><h2>この味くらべはどこまで信用できるか</h2>'
+  h+='<div class="res"><h2>この品評はどこまで信用できるか</h2>'
     +'<div class="pair"><span>作柄のばらつき'+(measured?'（実測 '+measured+'枚）':'（推定値）')+'</span><span class="sc">約'+noisePt.toFixed(1)+'点</span></div>'
     +'<div class="pair"><span>1位と2位の点差</span><span class="sc">'+gap+'点</span></div>'
     +'<p class="note">'+(pairs.length<2 ? '組が1つしかないので順位はありません。三枚以上で試してください。'
@@ -819,12 +825,15 @@ function drawMap(ppl){
   g.textAlign='left';  g.fillText('やわらかい',6,PY(0)-10);
   g.textAlign='right'; g.fillText('しっかり',W-6,PY(0)-10);
 
-  // 銘柄
-  g.font='19px system-ui, sans-serif'; g.textAlign='center';
+  // 銘柄＝品評の見本。自分の田と混ざらないよう、四角と薄い色にする
+  g.font='18px system-ui, sans-serif'; g.textAlign='center';
   for(const r of RICE){
-    const x=PX(r.x), y=PY(r.y);
-    g.fillStyle='#e3d27a'; g.beginPath(); g.arc(x,y,7,0,6.284); g.fill();
-    g.fillStyle='#b9c98a'; g.fillText(r.nm,x,y-13);
+    const x=PX(r.x), y=PY(r.y), h=6;
+    g.fillStyle='rgba(227,210,122,.30)';
+    g.fillRect(x-h,y-h,h*2,h*2);
+    g.strokeStyle='rgba(227,210,122,.85)'; g.lineWidth=1.5;
+    g.strokeRect(x-h,y-h,h*2,h*2);
+    g.fillStyle='#a8b98a'; g.fillText(r.nm,x,y-13);
   }
   // それぞれの田の米
   g.font='bold 22px system-ui, sans-serif';
@@ -836,7 +845,7 @@ function drawMap(ppl){
     let best=null, bd=1e9;
     for(const r of RICE){ const d=Math.hypot((p.x-r.x)/(x1-x0),(p.y-r.y)/(y1-y0));
       if(d<bd){ bd=d; best=r; } }
-    li+='<div class="pair"><span>'+LB_OF(p.f)+'</span><span class="sc">'+best.nm+'</span></div>';
+    li+='<div class="pair"><span>'+LB_OF(p.f)+'</span><span class="sc">'+best.nm+' 系</span></div>';
   }
   $('mapList').innerHTML=li;
 }
