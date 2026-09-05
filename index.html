@@ -161,7 +161,7 @@
 /* ============================================================
    ライブラリ（ESM は vision_bundle.mjs を明示：検証済み）
    ============================================================ */
-const VER='v20';
+const VER='v21';
 document.getElementById('ver').textContent=' ('+VER+')';
 
 /* どこで止まったかを常に追跡する。例外も全部拾って表示する */
@@ -228,7 +228,8 @@ let REF={inner:0.420, eyeW:0.290, eyeH:0.068, noseY:0.466,
 const exag=(v,r)=>r+K*(v-r);
 /* 部位ごとの色。鼻は幾何的に自動選択しているので、
    黄色い点が鼻の位置に乗っていれば選択が正しいと目視で確認できる */
-const PART_COL=['#8ecbff','#ffd35e','#ff8fb0','#cfd6e0','#9be08a'];
+const PART_COL=['#8ecbff','#ffd35e','#ff8fb0','#cfd6e0','#c9a6ff','#9be08a'];
+/* 青=目 黄=鼻 桃=口 灰=輪郭 紫=眉 緑=必須点 */
 
 /* 保存済みベクトルから測定値を復元する（撮影時のライブ計算と同じ式） */
 function measureFromVec(v,map){
@@ -261,7 +262,8 @@ function drawDots(cvs, pts, groups){
 /* スキーマの並び順から、部位の区切り位置を作る */
 function groupEdges(sc){
   const a=sc.eyes.length, b=a+sc.nose.length, c=b+sc.mouth.length, d=c+sc.oval.length;
-  return [a,b,c,d,d+(sc.key?sc.key.length:0)];
+  const e=d+(sc.brow?sc.brow.length:0);
+  return [a,b,c,d,e,e+(sc.key?sc.key.length:0)];
 }
 function drawFace(cvs,p){
   if(!DB.schema) return;
@@ -297,8 +299,8 @@ function toMap(m){
    ============================================================ */
 /* 保存する点の構成を変えたため、v1 のデータとは比較できない。
    キーを変え、古い方は読み込み時に消す */
-const KEY='kao.fruit.v2', TTL=10*3600*1000;
-try{ localStorage.removeItem('kao.fruit.v1'); }catch(e){}
+const KEY='kao.fruit.v3', TTL=10*3600*1000;
+try{ localStorage.removeItem('kao.fruit.v1'); localStorage.removeItem('kao.fruit.v2'); }catch(e){}
 let mem=null;
 function store(o){ try{ localStorage.setItem(KEY,JSON.stringify(o)); }catch(e){ mem=o; } }
 function load(){
@@ -353,16 +355,24 @@ function buildSchema(n){
   const nose=[];
   for(let i=0;i<n.length && i<468;i++){
     if(used.has(i)) continue;
-    if(Math.abs(n[i].x)<0.30 && n[i].y>0.10 && n[i].y<0.55) nose.push(i);
+    if(Math.abs(n[i].x)<0.30 && n[i].y>0.10 && n[i].y<0.55) nose.push(i);   // 目より下、口より上
   }
   const thin=(a,k)=>a.filter((_,i)=>i%k===0);
-  const sch={ eyes:EYES, nose:thin(nose,Math.max(1,Math.ceil(nose.length/20))).slice(0,20),
-              mouth:thin(LIPS,2), oval:thin(OVAL,2) };
-  const have=new Set([...sch.eyes,...sch.nose,...sch.mouth,...sch.oval]);
+  // 眉：目より上の帯にある点を幾何的に拾う（公式定数に眉が無いため）
+  const brow=[];
+  for(let i=0;i<n.length && i<468;i++){
+    if(used.has(i)) continue;
+    const ax=Math.abs(n[i].x);
+    if(ax>0.08 && ax<0.75 && n[i].y>-0.45 && n[i].y<-0.15) brow.push(i);
+  }
+  const cap=(a,max)=>thin(a,Math.max(1,Math.ceil(a.length/max))).slice(0,max);
+  const sch={ eyes:EYES, nose:cap(nose,30), mouth:thin(LIPS,2),
+              oval:OVAL, brow:cap(brow,18) };
+  const have=new Set([...sch.eyes,...sch.nose,...sch.mouth,...sch.oval,...sch.brow]);
   sch.key=MUST.filter(i=>!have.has(i));   // 重複させると距離が二重計上になる
   return sch;
 }
-const allIdx=s=>[...s.eyes,...s.nose,...s.mouth,...s.oval,...(s.key||[])];
+const allIdx=s=>[...s.eyes,...s.nose,...s.mouth,...s.oval,...(s.brow||[]),...(s.key||[])];
 
 /* 部位ごとの距離（小さいほど近い） */
 function dist(v1,v2,ids,map){
@@ -661,7 +671,7 @@ function finish(){
   const map={}; ids.forEach((v,i)=>map[v]=i);
   const v=ids.map(i=>{
     let x=0,y=0; for(const f of buf){ x+=f[i].x; y+=f[i].y; }
-    return {x:x/buf.length, y:y/buf.length};
+    return {x:+(x/buf.length).toFixed(4), y:+(y/buf.length).toFixed(4)};
   });
   // ブレ幅（この人の測定ノイズの目安）
   let jit=0;
@@ -690,6 +700,7 @@ function computeResults(){
   const ppl=FRUITS.filter(f=>DB.people[f.id]);
   const S=DB.schema, map=DB.people[ppl[0].id].map;
   const parts={ '目':S.eyes, '鼻':S.nose, '口':S.mouth, '輪郭':S.oval };
+  if(S.brow&&S.brow.length) parts['眉']=S.brow;
   const all=allIdx(S);
 
   const pairs=[];
